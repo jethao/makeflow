@@ -143,8 +143,15 @@ const contextInput = document.querySelector("#contextInput");
 const modalCloseButton = document.querySelector("#modalCloseButton");
 const modalDoneButton = document.querySelector("#modalDoneButton");
 const modalSaveState = document.querySelector("#modalSaveState");
+const prdReviewModal = document.querySelector("#prdReviewModal");
+const prdReviewStage = document.querySelector("#prdReviewStage");
+const prdReviewContent = document.querySelector("#prdReviewContent");
+const prdReviewCloseButton = document.querySelector("#prdReviewCloseButton");
+const prdReviewCancelButton = document.querySelector("#prdReviewCancelButton");
+const prdReviewConfirmButton = document.querySelector("#prdReviewConfirmButton");
 
 let activeContext = null;
+let pendingPrdStageIndex = null;
 let isGeneratingPrd = false;
 let prdGenerationError = "";
 
@@ -375,10 +382,16 @@ function renderActivity() {
   `).join("");
 }
 
-async function completeCurrentStep() {
+function completeCurrentStep() {
   if (completeButton.disabled || isGeneratingPrd) return;
+  openPrdReviewModal(selectedIndex);
+}
 
-  const stageIndex = selectedIndex;
+async function generateConfirmedPrd() {
+  if (pendingPrdStageIndex === null || isGeneratingPrd) return;
+
+  const stageIndex = pendingPrdStageIndex;
+  closePrdReviewModal();
   isGeneratingPrd = true;
   prdGenerationError = "";
   logActivity(`${stages[stageIndex].name} PRD generation started`);
@@ -454,10 +467,20 @@ modalDoneButton.addEventListener("click", closeContextModal);
 contextModal.addEventListener("click", (event) => {
   if (event.target === contextModal) closeContextModal();
 });
+prdReviewCloseButton.addEventListener("click", closePrdReviewModal);
+prdReviewCancelButton.addEventListener("click", closePrdReviewModal);
+prdReviewConfirmButton.addEventListener("click", () => {
+  generateConfirmedPrd();
+});
+prdReviewModal.addEventListener("click", (event) => {
+  if (event.target === prdReviewModal) closePrdReviewModal();
+});
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !contextModal.classList.contains("is-hidden")) {
     closeContextModal();
+  } else if (event.key === "Escape" && !prdReviewModal.classList.contains("is-hidden")) {
+    closePrdReviewModal();
   }
 });
 
@@ -636,6 +659,20 @@ function deleteFeature(checkIndex, featureIndex) {
   logActivity("Primary use cases feature deleted");
   persist();
   render();
+}
+
+function openPrdReviewModal(stageIndex) {
+  const payload = buildPrdPayload(stageIndex);
+  pendingPrdStageIndex = stageIndex;
+  prdReviewStage.textContent = `${payload.stage.index}. ${payload.stage.name}`;
+  prdReviewContent.textContent = JSON.stringify(payload, null, 2);
+  prdReviewModal.classList.remove("is-hidden");
+  prdReviewConfirmButton.focus();
+}
+
+function closePrdReviewModal() {
+  pendingPrdStageIndex = null;
+  prdReviewModal.classList.add("is-hidden");
 }
 
 function updateBomTarget(value) {
