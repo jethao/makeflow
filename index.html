@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Makeflow</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-group">
+          <button class="icon-button" type="button" aria-label="Open navigation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </button>
+          <h1>Makeflow</h1>
+        </div>
+        <div class="product-title">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>
+          <span>Idea to Production</span>
+        </div>
+        <div class="top-actions">
+          <button class="avatar-button" type="button" aria-label="Current user">AK</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="step-panel" aria-label="Workflow steps">
+          <div class="panel-title">Workflow</div>
+          <ol id="stepList" class="step-list"></ol>
+        </aside>
+
+        <section class="detail-panel" aria-live="polite">
+          <div class="detail-header">
+            <div>
+              <div class="stage-line">
+                <h2 id="stageTitle"></h2>
+                <span id="stageStatus" class="status-label"></span>
+              </div>
+              <p id="stageSummary" class="stage-summary"></p>
+            </div>
+            <div class="meta-grid">
+              <div>
+                <span>Owner</span>
+                <strong id="stageOwner"></strong>
+              </div>
+              <div>
+                <label for="stageDateInput">Target date</label>
+                <input id="stageDateInput" class="date-input" type="date">
+              </div>
+              <div>
+                <span>Deliverable</span>
+                <strong id="stageDeliverable"></strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="content-grid">
+            <section class="work-card checklist-card">
+              <div class="section-heading">
+                <h3>Step checklist</h3>
+                <span id="checklistCount"></span>
+              </div>
+              <div class="product-type-row">
+                <label for="productTypeSelect">Product type</label>
+                <select id="productTypeSelect">
+                  <option value="">Select product type</option>
+                  <option value="Connected devices">Connected devices</option>
+                  <option value="Industrial IoT">Industrial IoT</option>
+                  <option value="Smart appliance products">Smart appliance products</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="bom-target-row">
+                <label for="bomTargetInput">BOM target</label>
+                <div class="price-field">
+                  <span>$</span>
+                  <input id="bomTargetInput" type="number" min="0" step="1" value="0" inputmode="decimal">
+                </div>
+              </div>
+              <ul id="checklist" class="checklist"></ul>
+            </section>
+
+            <section class="work-card">
+              <div class="section-heading">
+                <h3>Stage details</h3>
+              </div>
+              <dl class="detail-list">
+                <div>
+                  <dt>Decision gate</dt>
+                  <dd id="gateText"></dd>
+                </div>
+                <div>
+                  <dt>Evidence required</dt>
+                  <dd id="evidenceText"></dd>
+                </div>
+                <div>
+                  <dt>Blocked by</dt>
+                  <dd id="blockedByText"></dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+
+          <div class="notes-row">
+            <label for="notesInput">Notes</label>
+            <textarea id="notesInput" rows="4" placeholder="Add notes, decisions, owner updates, or context..."></textarea>
+            <span id="saveState">Saved locally</span>
+          </div>
+
+          <div class="action-row">
+            <p id="completionHint"></p>
+            <button id="completeButton" class="primary-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
+              Generate RPD
+            </button>
+          </div>
+
+          <div class="bottom-grid">
+            <section class="work-card">
+              <div class="section-heading">
+                <h3>Next step preview</h3>
+              </div>
+              <div id="nextPreview" class="next-preview"></div>
+            </section>
+            <section class="work-card">
+              <div class="section-heading">
+                <h3>Activity</h3>
+              </div>
+              <ol id="activityList" class="activity-list"></ol>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="contextModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <section class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <span id="modalStage"></span>
+            <h3 id="modalTitle"></h3>
+          </div>
+          <button id="modalCloseButton" class="icon-button" type="button" aria-label="Close description editor">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <label for="contextInput">Description</label>
+        <textarea id="contextInput" rows="9" placeholder="Write the context, decisions, assumptions, links, or next actions for this item..."></textarea>
+        <div class="modal-footer">
+          <span id="modalSaveState">Saved on close</span>
+          <button id="modalDoneButton" class="primary-button" type="button">Done</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
