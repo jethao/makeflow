@@ -112,7 +112,7 @@
             <p id="completionHint"></p>
             <button id="completeButton" class="primary-button" type="button">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
-              Generate RPD
+              Generate PRD
             </button>
           </div>
 
@@ -150,6 +150,28 @@
         <div class="modal-footer">
           <span id="modalSaveState">Saved on close</span>
           <button id="modalDoneButton" class="primary-button" type="button">Done</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="prdReviewModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="prdReviewTitle">
+      <section class="modal-panel prd-review-panel">
+        <div class="modal-header">
+          <div>
+            <span id="prdReviewStage"></span>
+            <h3 id="prdReviewTitle">Review collective input</h3>
+          </div>
+          <button id="prdReviewCloseButton" class="icon-button" type="button" aria-label="Close PRD input review">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="prd-review-body">
+          <p>Review the collected input before sending it to OpenAI for PRD generation.</p>
+          <pre id="prdReviewContent" class="prd-review-content"></pre>
+        </div>
+        <div class="modal-footer">
+          <button id="prdReviewCancelButton" class="secondary-button" type="button">Cancel</button>
+          <button id="prdReviewConfirmButton" class="primary-button" type="button">Confirm and generate</button>
         </div>
       </section>
     </div>

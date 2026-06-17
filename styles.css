@@ -797,6 +797,10 @@ svg {
   box-shadow: 0 24px 70px rgba(17, 24, 39, 0.28);
 }
 
+.prd-review-panel {
+  width: min(900px, 100%);
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -854,6 +858,55 @@ svg {
 .modal-footer span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.secondary-button {
+  min-width: 110px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.secondary-button:hover,
+.secondary-button:focus {
+  border-color: var(--blue);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.1);
+}
+
+.prd-review-body {
+  padding: 18px 20px 0;
+}
+
+.prd-review-body p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.prd-review-content {
+  max-height: min(58vh, 560px);
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e5edf8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 1050px) {
