@@ -650,13 +650,19 @@ function updateBomTarget(value) {
 }
 
 async function generatePrd(stageIndex) {
-  const response = await fetch("/api/generate-prd", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(buildPrdPayload(stageIndex))
-  });
+  let response;
+
+  try {
+    response = await fetch("/api/generate-prd", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(buildPrdPayload(stageIndex))
+    });
+  } catch {
+    throw new Error("Could not reach the PRD server. Start the app with npm start and open the localhost URL printed by the server.");
+  }
 
   const result = await response.json().catch(() => ({}));
 

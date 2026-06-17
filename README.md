@@ -12,3 +12,5 @@ npm start
 ```
 
 Open `http://localhost:4173`. Generated PRD source snapshots and PRD Markdown files are saved under `generated/`.
+
+If another local server is already using port `4173`, Makeflow prints the next available URL, such as `http://localhost:4174`. Use the printed URL so `Generate PRD` can reach the local API server.
