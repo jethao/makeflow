@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT || 4173);
+const MAX_PORT_ATTEMPTS = 20;
 const OUTPUT_DIR = join(__dirname, "generated");
 const ROOT_DIR = resolve(__dirname);
 
@@ -16,30 +17,7 @@ const mimeTypes = {
   ".md": "text/markdown; charset=utf-8"
 };
 
-const server = createServer(async (request, response) => {
-  try {
-    const url = new URL(request.url || "/", `http://${request.headers.host}`);
-
-    if (request.method === "POST" && url.pathname === "/api/generate-prd") {
-      await handleGeneratePrd(request, response);
-      return;
-    }
-
-    if (request.method !== "GET" && request.method !== "HEAD") {
-      sendJson(response, 405, { error: "Method not allowed" });
-      return;
-    }
-
-    await serveStatic(url.pathname, response, request.method === "HEAD");
-  } catch (error) {
-    console.error(error);
-    sendJson(response, 500, { error: "Unexpected server error" });
-  }
-});
-
-server.listen(PORT, () => {
-  console.log(`Makeflow is running at http://localhost:${PORT}`);
-});
+listen(PORT);
 
 async function handleGeneratePrd(request, response) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -213,4 +191,43 @@ function slugify(value) {
 
 function relativeLocalPath(filePath) {
   return filePath.replace(`${__dirname}/`, "");
+}
+
+function listen(port, attempts = 0) {
+  const server = createServer(handleRequest);
+
+  server.once("error", (error) => {
+    if (error.code === "EADDRINUSE" && attempts < MAX_PORT_ATTEMPTS) {
+      listen(port + 1, attempts + 1);
+      return;
+    }
+
+    console.error(error);
+    process.exit(1);
+  });
+
+  server.listen(port, () => {
+    console.log(`Makeflow is running at http://localhost:${port}`);
+  });
+}
+
+async function handleRequest(request, response) {
+  try {
+    const url = new URL(request.url || "/", `http://${request.headers.host}`);
+
+    if (request.method === "POST" && url.pathname === "/api/generate-prd") {
+      await handleGeneratePrd(request, response);
+      return;
+    }
+
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      sendJson(response, 405, { error: "Method not allowed" });
+      return;
+    }
+
+    await serveStatic(url.pathname, response, request.method === "HEAD");
+  } catch (error) {
+    console.error(error);
+    sendJson(response, 500, { error: "Unexpected server error" });
+  }
 }
