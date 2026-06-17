@@ -168,10 +168,18 @@
         <div class="prd-review-body">
           <p>Review the collected input before sending it to OpenAI for PRD generation.</p>
           <pre id="prdReviewContent" class="prd-review-content"></pre>
+          <label class="api-toggle-row" for="allowOpenAiToggle">
+            <span>
+              <strong>Allow OpenAI API call</strong>
+              <span id="openAiToggleStatus">Off by default. Turn on to generate the PRD.</span>
+            </span>
+            <input id="allowOpenAiToggle" type="checkbox">
+            <span class="toggle-track" aria-hidden="true"><span></span></span>
+          </label>
         </div>
         <div class="modal-footer">
           <button id="prdReviewCancelButton" class="secondary-button" type="button">Cancel</button>
-          <button id="prdReviewConfirmButton" class="primary-button" type="button">Confirm and generate</button>
+          <button id="prdReviewConfirmButton" class="primary-button" type="button" disabled>Confirm and generate</button>
         </div>
       </section>
     </div>

@@ -149,6 +149,8 @@ const prdReviewContent = document.querySelector("#prdReviewContent");
 const prdReviewCloseButton = document.querySelector("#prdReviewCloseButton");
 const prdReviewCancelButton = document.querySelector("#prdReviewCancelButton");
 const prdReviewConfirmButton = document.querySelector("#prdReviewConfirmButton");
+const allowOpenAiToggle = document.querySelector("#allowOpenAiToggle");
+const openAiToggleStatus = document.querySelector("#openAiToggleStatus");
 
 let activeContext = null;
 let pendingPrdStageIndex = null;
@@ -389,6 +391,10 @@ function completeCurrentStep() {
 
 async function generateConfirmedPrd() {
   if (pendingPrdStageIndex === null || isGeneratingPrd) return;
+  if (!allowOpenAiToggle.checked) {
+    updatePrdReviewActionState();
+    return;
+  }
 
   const stageIndex = pendingPrdStageIndex;
   closePrdReviewModal();
@@ -472,6 +478,7 @@ prdReviewCancelButton.addEventListener("click", closePrdReviewModal);
 prdReviewConfirmButton.addEventListener("click", () => {
   generateConfirmedPrd();
 });
+allowOpenAiToggle.addEventListener("change", updatePrdReviewActionState);
 prdReviewModal.addEventListener("click", (event) => {
   if (event.target === prdReviewModal) closePrdReviewModal();
 });
@@ -666,13 +673,25 @@ function openPrdReviewModal(stageIndex) {
   pendingPrdStageIndex = stageIndex;
   prdReviewStage.textContent = `${payload.stage.index}. ${payload.stage.name}`;
   prdReviewContent.textContent = JSON.stringify(payload, null, 2);
+  allowOpenAiToggle.checked = false;
+  updatePrdReviewActionState();
   prdReviewModal.classList.remove("is-hidden");
-  prdReviewConfirmButton.focus();
+  allowOpenAiToggle.focus();
 }
 
 function closePrdReviewModal() {
   pendingPrdStageIndex = null;
+  allowOpenAiToggle.checked = false;
+  updatePrdReviewActionState();
   prdReviewModal.classList.add("is-hidden");
+}
+
+function updatePrdReviewActionState() {
+  const allowed = allowOpenAiToggle.checked;
+  prdReviewConfirmButton.disabled = !allowed;
+  openAiToggleStatus.textContent = allowed
+    ? "On. Confirming will send this input to OpenAI."
+    : "Off by default. Turn on to generate the PRD.";
 }
 
 function updateBomTarget(value) {
