@@ -145,6 +145,8 @@ const modalDoneButton = document.querySelector("#modalDoneButton");
 const modalSaveState = document.querySelector("#modalSaveState");
 
 let activeContext = null;
+let isGeneratingPrd = false;
+let prdGenerationError = "";
 
 function loadState() {
   const initial = {
@@ -155,6 +157,7 @@ function loadState() {
     productType: "",
     bomTarget: 0,
     targetDates: defaultDates,
+    prdOutputs: Array(stages.length).fill(null),
     notes: Array(stages.length).fill(""),
     activity: [createActivity("Workflow started")],
     selectedIndex: 0
@@ -173,6 +176,7 @@ function loadState() {
       productType: typeof saved.productType === "string" ? saved.productType : "",
       bomTarget: normalizePrice(saved.bomTarget),
       targetDates: stages.map((_, index) => typeof saved.targetDates?.[index] === "string" ? saved.targetDates[index] : defaultDates[index]),
+      prdOutputs: stages.map((_, index) => normalizePrdOutput(saved.prdOutputs?.[index])),
       notes: stages.map((_, index) => saved.notes?.[index] || ""),
       activity: normalizeActivity(saved.activity)
     };
@@ -283,15 +287,20 @@ function renderDetails() {
   const allDocumented = documentedCount === stage.checklist.length;
   const hasProductType = Boolean(state.productType);
   const hasBomTarget = state.bomTarget > 0;
-  completeButton.disabled = status === "locked" || status === "completed" || !allDocumented || !hasProductType || !hasBomTarget;
-  completeButton.innerHTML = status === "completed"
-    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> RPD generated'
-    : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Generate RPD';
+  completeButton.disabled = isGeneratingPrd || status === "locked" || status === "completed" || !allDocumented || !hasProductType || !hasBomTarget;
+  completeButton.innerHTML = getCompleteButtonMarkup(status);
 
   if (status === "locked") {
     completionHint.textContent = `Complete ${stages[selectedIndex - 1].name} before this step can start.`;
   } else if (status === "completed") {
-    completionHint.textContent = "This gate is complete. You can review notes or move to the next unlocked stage.";
+    const output = state.prdOutputs[selectedIndex];
+    completionHint.textContent = output?.outputFile
+      ? `PRD saved locally at ${output.outputFile}.`
+      : "This gate is complete. You can review notes or move to the next unlocked stage.";
+  } else if (isGeneratingPrd) {
+    completionHint.textContent = "Generating PRD from the collected inputs...";
+  } else if (prdGenerationError) {
+    completionHint.textContent = prdGenerationError;
   } else if (!hasProductType) {
     completionHint.textContent = "Select a product type before completing this stage.";
   } else if (!hasBomTarget) {
@@ -299,7 +308,7 @@ function renderDetails() {
   } else if (!allDocumented) {
     completionHint.textContent = "Add descriptions for every checklist item and at least one Primary use cases feature.";
   } else {
-    completionHint.textContent = "Every checklist item has context. Completing this step unlocks the next stage.";
+    completionHint.textContent = "Every checklist item has context. Generating the PRD unlocks the next stage.";
   }
 
   checklist.querySelectorAll(".check-button").forEach((button) => {
@@ -366,18 +375,38 @@ function renderActivity() {
   `).join("");
 }
 
-function completeCurrentStep() {
-  if (completeButton.disabled) return;
-  state.completed[selectedIndex] = true;
-  logActivity(`${stages[selectedIndex].name} RPD generated`);
+async function completeCurrentStep() {
+  if (completeButton.disabled || isGeneratingPrd) return;
 
-  if (selectedIndex < stages.length - 1) {
-    selectedIndex += 1;
-    logActivity(`${stages[selectedIndex].name} unlocked`);
-  }
-
+  const stageIndex = selectedIndex;
+  isGeneratingPrd = true;
+  prdGenerationError = "";
+  logActivity(`${stages[stageIndex].name} PRD generation started`);
   persist();
   render();
+
+  try {
+    const result = await generatePrd(stageIndex);
+    state.prdOutputs[stageIndex] = {
+      inputFile: result.inputFile,
+      outputFile: result.outputFile,
+      generatedAt: new Date().toISOString()
+    };
+    state.completed[stageIndex] = true;
+    logActivity(`${stages[stageIndex].name} PRD generated at ${result.outputFile}`);
+
+    if (stageIndex < stages.length - 1) {
+      selectedIndex = stageIndex + 1;
+      logActivity(`${stages[selectedIndex].name} unlocked`);
+    }
+  } catch (error) {
+    prdGenerationError = error.message;
+    logActivity(`${stages[stageIndex].name} PRD generation failed: ${error.message}`);
+  } finally {
+    isGeneratingPrd = false;
+    persist();
+    render();
+  }
 }
 
 function render() {
@@ -432,7 +461,9 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-completeButton.addEventListener("click", completeCurrentStep);
+completeButton.addEventListener("click", () => {
+  completeCurrentStep();
+});
 
 render();
 
@@ -457,6 +488,16 @@ function normalizeFeatureLists(featureLists, length) {
     const features = featureLists?.[index];
     return Array.isArray(features) ? features.filter((feature) => typeof feature === "string") : [];
   });
+}
+
+function normalizePrdOutput(output) {
+  if (!output || typeof output !== "object") return null;
+
+  return {
+    inputFile: typeof output.inputFile === "string" ? output.inputFile : "",
+    outputFile: typeof output.outputFile === "string" ? output.outputFile : "",
+    generatedAt: typeof output.generatedAt === "string" ? output.generatedAt : ""
+  };
 }
 
 function normalizePrice(value) {
@@ -606,6 +647,82 @@ function updateBomTarget(value) {
   state.bomTarget = next;
   persist();
   render();
+}
+
+async function generatePrd(stageIndex) {
+  const response = await fetch("/api/generate-prd", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(buildPrdPayload(stageIndex))
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(result.error || "Unable to generate PRD.");
+  }
+
+  if (!result.outputFile) {
+    throw new Error("The PRD was generated, but the output file path was not returned.");
+  }
+
+  return result;
+}
+
+function buildPrdPayload(stageIndex) {
+  const stage = stages[stageIndex];
+
+  return {
+    stage: {
+      index: stageIndex + 1,
+      name: stage.name,
+      summary: stage.summary,
+      owner: stage.owner,
+      targetDate: state.targetDates[stageIndex],
+      deliverable: stage.deliverable,
+      decisionGate: stage.gate,
+      evidenceRequired: stage.evidence
+    },
+    product: {
+      type: state.productType,
+      bomTarget: state.bomTarget
+    },
+    checklist: stage.checklist.map((item, checkIndex) => {
+      if (isFeatureItem(item)) {
+        return {
+          item,
+          type: "features",
+          features: state.checklistFeatures[stageIndex][checkIndex]
+        };
+      }
+
+      return {
+        item,
+        type: "description",
+        description: state.checklistContexts[stageIndex][checkIndex]
+      };
+    }),
+    notes: state.notes[stageIndex],
+    priorStages: stages.slice(0, stageIndex).map((priorStage, index) => ({
+      name: priorStage.name,
+      completed: state.completed[index],
+      prdOutput: state.prdOutputs[index]
+    }))
+  };
+}
+
+function getCompleteButtonMarkup(status) {
+  if (isGeneratingPrd) {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.64 5.64l2.12 2.12M16.24 16.24l2.12 2.12M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12"/></svg> Generating PRD';
+  }
+
+  if (status === "completed") {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> PRD generated';
+  }
+
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Generate PRD';
 }
 
 function createActivity(message, timestamp = new Date().toISOString()) {
