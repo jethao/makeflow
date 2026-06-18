@@ -590,7 +590,9 @@ svg {
   padding: 8px 20px 20px;
 }
 
+.product-name-row,
 .product-type-row,
+.form-factor-row,
 .bom-target-row {
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr);
@@ -601,7 +603,9 @@ svg {
   background: var(--surface-soft);
 }
 
+.product-name-row label,
 .product-type-row label,
+.form-factor-row label,
 .bom-target-row label,
 .modal-panel label {
   color: var(--muted);
@@ -628,6 +632,32 @@ svg {
 }
 
 .product-type-row select:disabled {
+  color: var(--faint);
+  background: #eef2f7;
+}
+
+.product-name-row input,
+.form-factor-row input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 12px;
+}
+
+.product-name-row input:focus,
+.form-factor-row input:focus {
+  border-color: var(--blue);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.13);
+}
+
+.product-name-row input:disabled,
+.form-factor-row input:disabled {
   color: var(--faint);
   background: #eef2f7;
 }
@@ -1311,7 +1341,9 @@ svg {
     width: 100%;
   }
 
+  .product-name-row,
   .product-type-row,
+  .form-factor-row,
   .bom-target-row {
     grid-template-columns: 1fr;
     gap: 8px;
