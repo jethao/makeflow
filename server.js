@@ -8,6 +8,8 @@ const PORT = Number(process.env.PORT || 4173);
 const MAX_PORT_ATTEMPTS = 20;
 const OUTPUT_DIR = join(__dirname, "generated");
 const ROOT_DIR = resolve(__dirname);
+const DEFAULT_MODEL = "gpt-5.4-mini";
+const PROMPT_CACHE_RETENTION = process.env.OPENAI_PROMPT_CACHE_RETENTION || "in_memory";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -109,7 +111,9 @@ async function callOpenAIForSpecReview(apiKey, specDocument) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
+      model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+      prompt_cache_key: "makeflow-spec-inspection-v1",
+      prompt_cache_retention: PROMPT_CACHE_RETENTION,
       input: [
         {
           role: "system",
@@ -156,7 +160,9 @@ async function callOpenAI(apiKey, inputDocument) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
+      model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+      prompt_cache_key: "makeflow-prd-generation-v1",
+      prompt_cache_retention: PROMPT_CACHE_RETENTION,
       input: [
         {
           role: "system",
