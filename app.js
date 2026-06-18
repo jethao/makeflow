@@ -103,7 +103,7 @@ const stages = [
 
 const STORAGE_KEY = "makeflow-state-v1";
 const defaultDates = stages.map((stage) => parseDisplayDate(stage.target));
-const FEATURE_TEMPLATE = `Feature:
+const FEATURE_TEMPLATE = `Use case:
 
 How to use:
 
@@ -408,7 +408,7 @@ function renderDetails() {
   } else if (!hasBomTarget) {
     completionHint.textContent = "Set a BOM target before completing this stage.";
   } else if (!allDocumented) {
-    completionHint.textContent = "Add descriptions for every checklist item and at least one Primary use cases feature.";
+    completionHint.textContent = "Add descriptions for every checklist item and at least one primary use case.";
   } else if (!specApproved && product.specReviews[selectedIndex]) {
     completionHint.textContent = "Spec inspection needs changes or is out of date. See Activity, then inspect again.";
   } else if (!specApproved) {
@@ -888,9 +888,9 @@ function renderFeatureChecklistItem(stage, stageIndex, checkIndex, status) {
         <div class="feature-check-header">
           <div>
             <strong>${escapeHtml(stage.checklist[checkIndex])}</strong>
-            <span>${features.length ? `${features.length} feature${features.length === 1 ? "" : "s"} added` : "Add features"}</span>
+            <span>${features.length ? `${features.length} use case${features.length === 1 ? "" : "s"} added` : "Add use cases"}</span>
           </div>
-          <button class="feature-add-button" type="button" data-check="${checkIndex}" ${disabled} aria-label="Add Primary use cases feature">
+          <button class="feature-add-button" type="button" data-check="${checkIndex}" ${disabled} aria-label="Add Primary use case">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           </button>
         </div>
@@ -900,7 +900,7 @@ function renderFeatureChecklistItem(stage, stageIndex, checkIndex, status) {
               <button class="feature-edit-button" type="button" data-check="${checkIndex}" data-feature="${featureIndex}" ${disabled}>
                 <span>${escapeHtml(summarizeFeature(feature))}</span>
               </button>
-              <button class="feature-delete-button" type="button" data-check="${checkIndex}" data-feature="${featureIndex}" ${disabled} aria-label="Delete feature">
+              <button class="feature-delete-button" type="button" data-check="${checkIndex}" data-feature="${featureIndex}" ${disabled} aria-label="Delete use case">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>
               </button>
             </li>
@@ -913,7 +913,7 @@ function renderFeatureChecklistItem(stage, stageIndex, checkIndex, status) {
 
 function summarizeFeature(value) {
   const featureLine = value.split("\n").find((line) => line.trim() && !line.trim().endsWith(":"));
-  return featureLine ? summarizeContext(featureLine.replace(/^feature:\s*/i, "")) : "Untitled feature";
+  return featureLine ? summarizeContext(featureLine.replace(/^(feature|use case):\s*/i, "")) : "Untitled use case";
 }
 
 function openContextModal(checkIndex) {
@@ -938,8 +938,8 @@ function openFeatureModal(checkIndex, featureIndex = null) {
   const stage = stages[selectedIndex];
   activeContext = { type: "feature", stageIndex: selectedIndex, checkIndex, featureIndex };
   modalStage.textContent = `${stage.name} · Primary use cases`;
-  modalTitle.textContent = featureIndex === null ? "New feature" : "Edit feature";
-  contextInput.previousElementSibling.textContent = "Feature details";
+  modalTitle.textContent = featureIndex === null ? "New use case" : "Edit use case";
+  contextInput.previousElementSibling.textContent = "Use case details";
   contextInput.value = featureIndex === null ? FEATURE_TEMPLATE : product.checklistFeatures[selectedIndex][checkIndex][featureIndex];
   modalSaveState.textContent = "Saved on close";
   contextModal.classList.remove("is-hidden");
@@ -984,13 +984,13 @@ function saveFeatureContext(context, value) {
 
   if (context.featureIndex === null) {
     features.push(text);
-    logActivity("Primary use cases feature added");
+    logActivity("Primary use case added");
     return;
   }
 
   if (features[context.featureIndex] !== text) {
     features[context.featureIndex] = text;
-    logActivity("Primary use cases feature updated");
+    logActivity("Primary use case updated");
   }
 }
 
@@ -999,7 +999,7 @@ function deleteFeature(checkIndex, featureIndex) {
   if (!product) return;
 
   product.checklistFeatures[selectedIndex][checkIndex].splice(featureIndex, 1);
-  logActivity("Primary use cases feature deleted");
+  logActivity("Primary use case deleted");
   persist();
   render();
 }
@@ -1126,7 +1126,8 @@ function buildPrdPayload(stageIndex) {
       if (isFeatureItem(item)) {
         return {
           item,
-          type: "features",
+          type: "use_cases",
+          useCases: product.checklistFeatures[stageIndex][checkIndex],
           features: product.checklistFeatures[stageIndex][checkIndex]
         };
       }
