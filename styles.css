@@ -507,7 +507,6 @@ svg {
 
 .meta-grid span,
 .meta-grid label,
-.detail-list dt,
 .notes-row label {
   display: block;
   color: var(--muted);
@@ -549,7 +548,7 @@ svg {
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.85fr);
+  grid-template-columns: 1fr;
   gap: 18px;
 }
 
@@ -817,24 +816,6 @@ svg {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
-}
-
-.detail-list {
-  margin: 0;
-  padding: 20px;
-}
-
-.detail-list div + div {
-  margin-top: 20px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-}
-
-.detail-list dd {
-  margin: 7px 0 0;
-  color: #2d3645;
-  font-size: 15px;
-  line-height: 1.5;
 }
 
 .notes-row {
