@@ -7,7 +7,7 @@ const stages = [
     deliverable: "Approved concept spec",
     gate: "The opportunity, target user, problem statement, and measurable outcome are clear enough for PRD work.",
     evidence: "Product description, target customer, core use cases, and success metrics.",
-    checklist: ["Product description", "Target customer", "Primary use cases", "Success metric", "Key assumptions"]
+    checklist: ["Product description", "Target customer", "Primary use cases", "Hardware constraints", "Software constraints", "Success metric", "Key assumptions"]
   },
   {
     name: "PRD review",
