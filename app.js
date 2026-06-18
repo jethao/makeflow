@@ -143,6 +143,7 @@ const blockedByText = document.querySelector("#blockedByText");
 const notesInput = document.querySelector("#notesInput");
 const saveState = document.querySelector("#saveState");
 const completionHint = document.querySelector("#completionHint");
+const inspectSpecButton = document.querySelector("#inspectSpecButton");
 const completeButton = document.querySelector("#completeButton");
 const activityList = document.querySelector("#activityList");
 const contextModal = document.querySelector("#contextModal");
@@ -170,7 +171,9 @@ let activeContext = null;
 let pendingPrdStageIndex = null;
 let pendingDeleteProductId = null;
 let isGeneratingPrd = false;
+let isInspectingSpec = false;
 let prdGenerationError = "";
+let specInspectionError = "";
 
 function loadState() {
   const empty = {
@@ -202,6 +205,7 @@ function loadState() {
       productType: typeof saved.productType === "string" ? saved.productType : "",
       bomTarget: normalizePrice(saved.bomTarget),
       targetDates: stages.map((_, index) => typeof saved.targetDates?.[index] === "string" ? saved.targetDates[index] : defaultDates[index]),
+      specReviews: stages.map((_, index) => normalizeSpecReview(saved.specReviews?.[index])),
       prdOutputs: stages.map((_, index) => normalizePrdOutput(saved.prdOutputs?.[index])),
       notes: stages.map((_, index) => saved.notes?.[index] || ""),
       activity: normalizeActivity(saved.activity),
@@ -228,6 +232,7 @@ function createProduct(overrides = {}) {
     productType: "",
     bomTarget: 0,
     targetDates: defaultDates,
+    specReviews: Array(stages.length).fill(null),
     prdOutputs: Array(stages.length).fill(null),
     notes: Array(stages.length).fill(""),
     activity: [createActivity("Workflow started")],
@@ -249,6 +254,7 @@ function normalizeProduct(product) {
     productType: typeof product.productType === "string" ? product.productType : "",
     bomTarget: normalizePrice(product.bomTarget),
     targetDates: stages.map((_, index) => typeof product.targetDates?.[index] === "string" ? product.targetDates[index] : defaultDates[index]),
+    specReviews: stages.map((_, index) => normalizeSpecReview(product.specReviews?.[index])),
     prdOutputs: stages.map((_, index) => normalizePrdOutput(product.prdOutputs?.[index])),
     notes: stages.map((_, index) => product.notes?.[index] || ""),
     activity: normalizeActivity(product.activity),
@@ -369,7 +375,11 @@ function renderDetails() {
   const allDocumented = documentedCount === stage.checklist.length;
   const hasProductType = Boolean(product.productType);
   const hasBomTarget = product.bomTarget > 0;
-  completeButton.disabled = isGeneratingPrd || status === "locked" || status === "completed" || !allDocumented || !hasProductType || !hasBomTarget;
+  const canInspectSpec = status !== "locked" && status !== "completed" && allDocumented && hasProductType && hasBomTarget;
+  const specApproved = isCurrentSpecApproved(product, selectedIndex);
+  inspectSpecButton.disabled = isInspectingSpec || isGeneratingPrd || !canInspectSpec;
+  inspectSpecButton.innerHTML = getInspectSpecButtonMarkup();
+  completeButton.disabled = isGeneratingPrd || isInspectingSpec || status === "locked" || status === "completed" || !allDocumented || !hasProductType || !hasBomTarget || !specApproved;
   completeButton.innerHTML = getCompleteButtonMarkup(status);
 
   if (status === "locked") {
@@ -381,16 +391,24 @@ function renderDetails() {
       : "This gate is complete. You can review notes or move to the next unlocked stage.";
   } else if (isGeneratingPrd) {
     completionHint.textContent = "Generating PRD from the collected inputs...";
+  } else if (isInspectingSpec) {
+    completionHint.textContent = "Inspecting spec with OpenAI...";
   } else if (prdGenerationError) {
     completionHint.textContent = prdGenerationError;
+  } else if (specInspectionError) {
+    completionHint.textContent = specInspectionError;
   } else if (!hasProductType) {
     completionHint.textContent = "Select a product type before completing this stage.";
   } else if (!hasBomTarget) {
     completionHint.textContent = "Set a BOM target before completing this stage.";
   } else if (!allDocumented) {
     completionHint.textContent = "Add descriptions for every checklist item and at least one Primary use cases feature.";
+  } else if (!specApproved && product.specReviews[selectedIndex]) {
+    completionHint.textContent = "Spec inspection needs changes or is out of date. See Activity, then inspect again.";
+  } else if (!specApproved) {
+    completionHint.textContent = "Inspect the spec and receive approved before generating the PRD.";
   } else {
-    completionHint.textContent = "Every checklist item has context. Generating the PRD unlocks the next stage.";
+    completionHint.textContent = "Spec approved. You can generate the PRD.";
   }
 
   checklist.querySelectorAll(".check-button").forEach((button) => {
@@ -432,6 +450,40 @@ function renderActivity() {
 function completeCurrentStep() {
   if (completeButton.disabled || isGeneratingPrd) return;
   openPrdReviewModal(selectedIndex);
+}
+
+async function inspectCurrentSpec() {
+  const product = activeProduct();
+  if (!product || inspectSpecButton.disabled || isInspectingSpec) return;
+
+  const stageIndex = selectedIndex;
+  isInspectingSpec = true;
+  specInspectionError = "";
+  prdGenerationError = "";
+  logActivity(`${stages[stageIndex].name} spec inspection started`);
+  persist();
+  render();
+
+  try {
+    const payload = buildPrdPayload(stageIndex);
+    const result = await inspectSpec(stageIndex, payload);
+    const review = result.review.trim();
+    const approved = isApprovedReview(review);
+    product.specReviews[stageIndex] = {
+      status: approved ? "approved" : "needs_changes",
+      review,
+      reviewedAt: new Date().toISOString(),
+      specSignature: specSignature(payload)
+    };
+    logActivity(review);
+  } catch (error) {
+    specInspectionError = error.message;
+    logActivity(`${stages[stageIndex].name} spec inspection failed: ${error.message}`);
+  } finally {
+    isInspectingSpec = false;
+    persist();
+    render();
+  }
 }
 
 async function generateConfirmedPrd() {
@@ -587,6 +639,7 @@ productTypeSelect.addEventListener("change", () => {
 bomTargetInput.addEventListener("change", () => {
   updateBomTarget(bomTargetInput.value);
 });
+inspectSpecButton.addEventListener("click", inspectCurrentSpec);
 
 dashboardButton.addEventListener("click", () => {
   state.selectedProductId = null;
@@ -746,6 +799,17 @@ function normalizePrdOutput(output) {
     inputFile: typeof output.inputFile === "string" ? output.inputFile : "",
     outputFile: typeof output.outputFile === "string" ? output.outputFile : "",
     generatedAt: typeof output.generatedAt === "string" ? output.generatedAt : ""
+  };
+}
+
+function normalizeSpecReview(review) {
+  if (!review || typeof review !== "object") return null;
+
+  return {
+    status: review.status === "approved" ? "approved" : "needs_changes",
+    review: typeof review.review === "string" ? review.review : "",
+    reviewedAt: typeof review.reviewedAt === "string" ? review.reviewedAt : "",
+    specSignature: typeof review.specSignature === "string" ? review.specSignature : ""
   };
 }
 
@@ -974,6 +1038,34 @@ async function generatePrd(stageIndex) {
   return result;
 }
 
+async function inspectSpec(stageIndex, payload = buildPrdPayload(stageIndex)) {
+  let response;
+
+  try {
+    response = await fetch("/api/inspect-spec", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    throw new Error("Could not reach the spec inspection server. Start the app with npm start and open the localhost URL printed by the server.");
+  }
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(result.error || "Unable to inspect spec.");
+  }
+
+  if (!result.review) {
+    throw new Error("OpenAI returned an empty spec inspection.");
+  }
+
+  return result;
+}
+
 function buildPrdPayload(stageIndex) {
   const product = activeProduct();
   if (!product) return {};
@@ -1030,6 +1122,27 @@ function getCompleteButtonMarkup(status) {
   }
 
   return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Generate PRD';
+}
+
+function getInspectSpecButtonMarkup() {
+  if (isInspectingSpec) {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.64 5.64l2.12 2.12M16.24 16.24l2.12 2.12M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12"/></svg> Inspecting';
+  }
+
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h10M4 19h7"/><path d="m15 18 2 2 4-5"/></svg> Inspect spec';
+}
+
+function isCurrentSpecApproved(product, stageIndex) {
+  const review = product.specReviews?.[stageIndex];
+  return Boolean(review && review.status === "approved" && review.specSignature === specSignature(buildPrdPayload(stageIndex)));
+}
+
+function specSignature(payload) {
+  return JSON.stringify(payload);
+}
+
+function isApprovedReview(review) {
+  return review.trim().toLowerCase() === "approved";
 }
 
 function createActivity(message, timestamp = new Date().toISOString()) {
