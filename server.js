@@ -310,7 +310,6 @@ async function handleRequest(request, response) {
         return;
       }
     }
-
     if (request.method === "POST" && url.pathname === "/api/inspect-spec") {
       await handleInspectSpec(request, response);
       return;
