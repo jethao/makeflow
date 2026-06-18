@@ -199,6 +199,25 @@
       </section>
     </div>
 
+    <div id="deleteProductModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="deleteProductTitle">
+      <section class="modal-panel confirm-panel">
+        <div class="modal-header">
+          <div>
+            <span>Product dashboard</span>
+            <h3 id="deleteProductTitle">Delete product?</h3>
+          </div>
+          <button id="deleteProductCloseButton" class="icon-button" type="button" aria-label="Close delete product confirmation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <p id="deleteProductMessage" class="confirm-message"></p>
+        <div class="modal-footer">
+          <button id="deleteProductCancelButton" class="secondary-button" type="button">Cancel</button>
+          <button id="deleteProductConfirmButton" class="danger-button" type="button">Delete</button>
+        </div>
+      </section>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>

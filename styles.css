@@ -237,7 +237,7 @@ svg {
 .product-card {
   min-height: 172px;
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-rows: auto 1fr auto auto auto;
   gap: 14px;
   padding: 18px;
   border: 1px solid var(--line);
@@ -246,7 +246,13 @@ svg {
   color: var(--text);
   text-align: left;
   box-shadow: var(--shadow);
-  cursor: pointer;
+}
+
+.product-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .product-icon {
@@ -259,6 +265,25 @@ svg {
   color: #fff;
   font-size: 14px;
   font-weight: 800;
+}
+
+.product-delete-button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: #b42318;
+  cursor: pointer;
+}
+
+.product-delete-button:hover,
+.product-delete-button:focus {
+  border-color: #b42318;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.12);
 }
 
 .product-card-main strong {
@@ -294,6 +319,10 @@ svg {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.product-open-button {
+  width: 100%;
 }
 
 .step-panel {
@@ -1015,6 +1044,39 @@ svg {
   border-color: var(--blue);
   outline: 0;
   box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.1);
+}
+
+.danger-button {
+  min-width: 110px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  background: #b42318;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.danger-button:hover,
+.danger-button:focus {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.16);
+}
+
+.confirm-panel {
+  width: min(520px, 100%);
+}
+
+.confirm-message {
+  margin: 0;
+  padding: 20px 20px 0;
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .prd-review-body {

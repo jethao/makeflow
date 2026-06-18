@@ -160,9 +160,15 @@ const prdReviewCancelButton = document.querySelector("#prdReviewCancelButton");
 const prdReviewConfirmButton = document.querySelector("#prdReviewConfirmButton");
 const allowOpenAiToggle = document.querySelector("#allowOpenAiToggle");
 const openAiToggleStatus = document.querySelector("#openAiToggleStatus");
+const deleteProductModal = document.querySelector("#deleteProductModal");
+const deleteProductMessage = document.querySelector("#deleteProductMessage");
+const deleteProductCloseButton = document.querySelector("#deleteProductCloseButton");
+const deleteProductCancelButton = document.querySelector("#deleteProductCancelButton");
+const deleteProductConfirmButton = document.querySelector("#deleteProductConfirmButton");
 
 let activeContext = null;
 let pendingPrdStageIndex = null;
+let pendingDeleteProductId = null;
 let isGeneratingPrd = false;
 let prdGenerationError = "";
 
@@ -508,8 +514,13 @@ function renderDashboard() {
     const progress = productCompletionPercent(product);
     const currentStage = currentStageName(product);
     return `
-      <button class="product-card" type="button" data-product-id="${escapeHtml(product.id)}">
-        <span class="product-icon">${productIcon(product)}</span>
+      <article class="product-card">
+        <div class="product-card-top">
+          <span class="product-icon">${productIcon(product)}</span>
+          <button class="product-delete-button" type="button" data-delete-product-id="${escapeHtml(product.id)}" aria-label="Delete ${escapeHtml(productDisplayName(product))}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15"/></svg>
+          </button>
+        </div>
         <span class="product-card-main">
           <strong>${escapeHtml(productDisplayName(product))}</strong>
           <span>${escapeHtml(product.productType || currentStage)}</span>
@@ -518,7 +529,8 @@ function renderDashboard() {
           <span style="width: ${progress}%"></span>
         </span>
         <span class="completion-label">${progress}% complete</span>
-      </button>
+        <button class="secondary-button product-open-button" type="button" data-product-id="${escapeHtml(product.id)}">Open</button>
+      </article>
     `;
   }).join("");
 }
@@ -589,9 +601,15 @@ navDashboardButton.addEventListener("click", () => {
 emptyAddProductButton.addEventListener("click", createAndOpenProduct);
 dashboardAddProductButton.addEventListener("click", createAndOpenProduct);
 productGrid.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-product-id]");
-  if (!button) return;
-  openProduct(button.dataset.productId);
+  const deleteButton = event.target.closest("[data-delete-product-id]");
+  if (deleteButton) {
+    openDeleteProductModal(deleteButton.dataset.deleteProductId);
+    return;
+  }
+
+  const openButton = event.target.closest("[data-product-id]");
+  if (!openButton) return;
+  openProduct(openButton.dataset.productId);
 });
 
 modalCloseButton.addEventListener("click", closeContextModal);
@@ -608,12 +626,20 @@ allowOpenAiToggle.addEventListener("change", updatePrdReviewActionState);
 prdReviewModal.addEventListener("click", (event) => {
   if (event.target === prdReviewModal) closePrdReviewModal();
 });
+deleteProductCloseButton.addEventListener("click", closeDeleteProductModal);
+deleteProductCancelButton.addEventListener("click", closeDeleteProductModal);
+deleteProductConfirmButton.addEventListener("click", deletePendingProduct);
+deleteProductModal.addEventListener("click", (event) => {
+  if (event.target === deleteProductModal) closeDeleteProductModal();
+});
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !contextModal.classList.contains("is-hidden")) {
     closeContextModal();
   } else if (event.key === "Escape" && !prdReviewModal.classList.contains("is-hidden")) {
     closePrdReviewModal();
+  } else if (event.key === "Escape" && !deleteProductModal.classList.contains("is-hidden")) {
+    closeDeleteProductModal();
   }
 });
 
@@ -673,6 +699,33 @@ function productIcon(product) {
   if (product.productType === "Smart appliance products") return "SA";
   if (product.productType === "Connected devices") return "CD";
   return "P";
+}
+
+function openDeleteProductModal(productId) {
+  const product = state.products.find((item) => item.id === productId);
+  if (!product) return;
+
+  pendingDeleteProductId = product.id;
+  deleteProductMessage.textContent = `This will remove ${productDisplayName(product)} and its saved workflow inputs from this browser.`;
+  deleteProductModal.classList.remove("is-hidden");
+  deleteProductConfirmButton.focus();
+}
+
+function closeDeleteProductModal() {
+  pendingDeleteProductId = null;
+  deleteProductModal.classList.add("is-hidden");
+}
+
+function deletePendingProduct() {
+  if (!pendingDeleteProductId) return;
+
+  state.products = state.products.filter((product) => product.id !== pendingDeleteProductId);
+  if (state.selectedProductId === pendingDeleteProductId) {
+    state.selectedProductId = null;
+  }
+  closeDeleteProductModal();
+  persist();
+  render();
 }
 
 function normalizeContexts(contexts, length) {
