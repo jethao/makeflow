@@ -363,11 +363,14 @@ svg {
   background: var(--surface-soft);
 }
 
-.content-grid,
-.bottom-grid {
+.content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 0.85fr);
   gap: 18px;
+}
+
+.bottom-grid {
+  display: block;
 }
 
 .work-card {
@@ -718,34 +721,11 @@ svg {
   cursor: not-allowed;
 }
 
-.next-preview {
-  padding: 20px;
-}
-
-.next-preview h4 {
-  margin: 0 0 8px;
-  font-size: 16px;
-}
-
-.next-preview p {
-  margin: 0;
-  color: #374151;
-  line-height: 1.5;
-}
-
-.preview-requirements {
-  margin: 16px 0 0;
-  padding-left: 18px;
-  color: #2d3645;
-  font-size: 14px;
-  line-height: 1.8;
-}
-
 .activity-list {
   list-style: none;
   margin: 0;
   padding: 16px 20px 20px;
-  max-height: 260px;
+  max-height: 380px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -995,8 +975,7 @@ svg {
   }
 
   .detail-header,
-  .content-grid,
-  .bottom-grid {
+  .content-grid {
     grid-template-columns: 1fr;
   }
 
