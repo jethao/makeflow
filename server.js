@@ -19,6 +19,36 @@ const mimeTypes = {
 
 listen(PORT);
 
+async function handleInspectSpec(request, response) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
+    return;
+  }
+
+  const payload = await readJsonBody(request);
+  const validationError = validatePrdPayload(payload);
+  if (validationError) {
+    sendJson(response, 400, { error: validationError });
+    return;
+  }
+
+  let review;
+  try {
+    review = await callOpenAIForSpecReview(apiKey, payload);
+  } catch (error) {
+    sendJson(response, 502, {
+      error: error.message || "OpenAI request failed."
+    });
+    return;
+  }
+
+  sendJson(response, 200, {
+    message: "Spec inspected",
+    review
+  });
+}
+
 async function handleGeneratePrd(request, response) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -69,6 +99,53 @@ async function handleGeneratePrd(request, response) {
     outputFile: relativeLocalPath(outputPath),
     prd
   });
+}
+
+async function callOpenAIForSpecReview(apiKey, specDocument) {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: "You are a senior product and engineering reviewer. Review the supplied product spec JSON for readiness to generate a PRD. If it is complete, internally consistent, testable, and has enough detail, return exactly: approved. If not, return a concise list of the blocking gaps and concrete fixes. Do not return approved unless there are no blocking gaps."
+            }
+          ]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Inspect this collective spec JSON:\n\n${JSON.stringify(specDocument, null, 2)}`
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = data?.error?.message || `OpenAI request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  const text = extractResponseText(data);
+  if (!text.trim()) {
+    throw new Error("OpenAI returned an empty spec inspection.");
+  }
+
+  return text.trim();
 }
 
 async function callOpenAI(apiKey, inputDocument) {
@@ -214,6 +291,11 @@ function listen(port, attempts = 0) {
 async function handleRequest(request, response) {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
+
+    if (request.method === "POST" && url.pathname === "/api/inspect-spec") {
+      await handleInspectSpec(request, response);
+      return;
+    }
 
     if (request.method === "POST" && url.pathname === "/api/generate-prd") {
       await handleGeneratePrd(request, response);
