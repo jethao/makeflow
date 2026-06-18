@@ -1120,6 +1120,22 @@ svg {
   overflow-wrap: anywhere;
 }
 
+.spec-inspect-json {
+  max-height: min(58vh, 560px);
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e5edf8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .api-toggle-row {
   min-height: 64px;
   display: grid;

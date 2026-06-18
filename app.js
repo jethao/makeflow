@@ -159,6 +159,12 @@ const prdReviewContent = document.querySelector("#prdReviewContent");
 const prdReviewCloseButton = document.querySelector("#prdReviewCloseButton");
 const prdReviewCancelButton = document.querySelector("#prdReviewCancelButton");
 const prdReviewConfirmButton = document.querySelector("#prdReviewConfirmButton");
+const specInspectModal = document.querySelector("#specInspectModal");
+const specInspectJson = document.querySelector("#specInspectJson");
+const specInspectStage = document.querySelector("#specInspectStage");
+const specInspectCloseButton = document.querySelector("#specInspectCloseButton");
+const specInspectCancelButton = document.querySelector("#specInspectCancelButton");
+const specInspectOkButton = document.querySelector("#specInspectOkButton");
 const allowOpenAiToggle = document.querySelector("#allowOpenAiToggle");
 const openAiToggleStatus = document.querySelector("#openAiToggleStatus");
 const deleteProductModal = document.querySelector("#deleteProductModal");
@@ -452,6 +458,10 @@ function completeCurrentStep() {
   openPrdReviewModal(selectedIndex);
 }
 
+function closeSpecInspectModal() {
+  specInspectModal.classList.add("is-hidden");
+}
+
 async function inspectCurrentSpec() {
   const product = activeProduct();
   if (!product || inspectSpecButton.disabled || isInspectingSpec) return;
@@ -639,7 +649,20 @@ productTypeSelect.addEventListener("change", () => {
 bomTargetInput.addEventListener("change", () => {
   updateBomTarget(bomTargetInput.value);
 });
-inspectSpecButton.addEventListener("click", inspectCurrentSpec);
+inspectSpecButton.addEventListener("click", () => {
+  const product = activeProduct();
+  if (!product || inspectSpecButton.disabled || isInspectingSpec) return;
+
+  const stageIndex = selectedIndex;
+  const payload = buildPrdPayload(stageIndex);
+
+  specInspectJson.textContent = JSON.stringify(payload, null, 2);
+  if (specInspectStage) {
+    specInspectStage.textContent = `${stageIndex + 1}. ${stages[stageIndex].name}`;
+  }
+  specInspectModal.classList.remove("is-hidden");
+  specInspectOkButton.focus();
+});
 
 dashboardButton.addEventListener("click", () => {
   state.selectedProductId = null;
@@ -675,6 +698,15 @@ prdReviewCancelButton.addEventListener("click", closePrdReviewModal);
 prdReviewConfirmButton.addEventListener("click", () => {
   generateConfirmedPrd();
 });
+specInspectCloseButton.addEventListener("click", closeSpecInspectModal);
+specInspectCancelButton.addEventListener("click", closeSpecInspectModal);
+specInspectOkButton.addEventListener("click", () => {
+  closeSpecInspectModal();
+  inspectCurrentSpec();
+});
+specInspectModal.addEventListener("click", (event) => {
+  if (event.target === specInspectModal) closeSpecInspectModal();
+});
 allowOpenAiToggle.addEventListener("change", updatePrdReviewActionState);
 prdReviewModal.addEventListener("click", (event) => {
   if (event.target === prdReviewModal) closePrdReviewModal();
@@ -693,6 +725,8 @@ document.addEventListener("keydown", (event) => {
     closePrdReviewModal();
   } else if (event.key === "Escape" && !deleteProductModal.classList.contains("is-hidden")) {
     closeDeleteProductModal();
+  } else if (event.key === "Escape" && !specInspectModal.classList.contains("is-hidden")) {
+    closeSpecInspectModal();
   }
 });
 
