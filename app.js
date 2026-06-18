@@ -135,6 +135,8 @@ const stageDateInput = document.querySelector("#stageDateInput");
 const stageDeliverable = document.querySelector("#stageDeliverable");
 const productTypeSelect = document.querySelector("#productTypeSelect");
 const bomTargetInput = document.querySelector("#bomTargetInput");
+const productNameInput = document.querySelector("#productNameInput");
+const formFactorInput = document.querySelector("#formFactorInput");
 const checklist = document.querySelector("#checklist");
 const checklistCount = document.querySelector("#checklistCount");
 const notesInput = document.querySelector("#notesInput");
@@ -205,6 +207,8 @@ function loadState() {
       checks: stages.map((_, index) => Array.isArray(saved.checks?.[index]) ? saved.checks[index] : []),
       checklistContexts: stages.map((stage, index) => normalizeContexts(saved.checklistContexts?.[index], stage.checklist.length)),
       checklistFeatures: stages.map((stage, index) => normalizeFeatureLists(saved.checklistFeatures?.[index], stage.checklist.length)),
+      productName: typeof saved.productName === "string" ? saved.productName : "",
+      formFactor: typeof saved.formFactor === "string" ? saved.formFactor : "",
       productType: typeof saved.productType === "string" ? saved.productType : "",
       bomTarget: normalizePrice(saved.bomTarget),
       targetDates: stages.map((_, index) => typeof saved.targetDates?.[index] === "string" ? saved.targetDates[index] : defaultDates[index]),
@@ -232,6 +236,8 @@ function createProduct(overrides = {}) {
     checks: stages.map(() => []),
     checklistContexts: stages.map((stage) => Array(stage.checklist.length).fill("")),
     checklistFeatures: stages.map((stage) => stage.checklist.map(() => [])),
+    productName: "",
+    formFactor: "",
     productType: "",
     bomTarget: 0,
     targetDates: defaultDates,
@@ -254,6 +260,8 @@ function normalizeProduct(product) {
     checks: stages.map((_, index) => Array.isArray(product.checks?.[index]) ? product.checks[index] : []),
     checklistContexts: stages.map((stage, index) => normalizeContexts(product.checklistContexts?.[index], stage.checklist.length)),
     checklistFeatures: stages.map((stage, index) => normalizeFeatureLists(product.checklistFeatures?.[index], stage.checklist.length)),
+    productName: typeof product.productName === "string" ? product.productName : "",
+    formFactor: typeof product.formFactor === "string" ? product.formFactor : "",
     productType: typeof product.productType === "string" ? product.productType : "",
     bomTarget: normalizePrice(product.bomTarget),
     targetDates: stages.map((_, index) => typeof product.targetDates?.[index] === "string" ? product.targetDates[index] : defaultDates[index]),
@@ -346,6 +354,10 @@ function renderDetails() {
   productTypeSelect.disabled = status === "locked";
   bomTargetInput.value = product.bomTarget;
   bomTargetInput.disabled = status === "locked";
+  productNameInput.value = product.productName || "";
+  productNameInput.disabled = status === "locked";
+  formFactorInput.value = product.formFactor || "";
+  formFactorInput.disabled = status === "locked";
 
   checklist.innerHTML = stage.checklist.map((item, index) => {
     if (isFeatureItem(item)) {
@@ -373,13 +385,15 @@ function renderDetails() {
   notesInput.disabled = status === "locked";
 
   const allDocumented = documentedCount === stage.checklist.length;
+  const hasProductName = Boolean(product.productName && product.productName.trim());
   const hasProductType = Boolean(product.productType);
+  const hasFormFactor = Boolean(product.formFactor && product.formFactor.trim());
   const hasBomTarget = product.bomTarget > 0;
-  const canInspectSpec = status !== "locked" && status !== "completed" && allDocumented && hasProductType && hasBomTarget;
+  const canInspectSpec = status !== "locked" && status !== "completed" && allDocumented && hasProductName && hasProductType && hasFormFactor && hasBomTarget;
   const specApproved = isCurrentSpecApproved(product, selectedIndex);
   inspectSpecButton.disabled = isInspectingSpec || isGeneratingPrd || !canInspectSpec;
   inspectSpecButton.innerHTML = getInspectSpecButtonMarkup();
-  completeButton.disabled = isGeneratingPrd || isInspectingSpec || status === "locked" || status === "completed" || !allDocumented || !hasProductType || !hasBomTarget || !specApproved;
+  completeButton.disabled = isGeneratingPrd || isInspectingSpec || status === "locked" || status === "completed" || !allDocumented || !hasProductName || !hasProductType || !hasFormFactor || !hasBomTarget || !specApproved;
   completeButton.innerHTML = getCompleteButtonMarkup(status);
 
   if (status === "locked") {
@@ -397,8 +411,12 @@ function renderDetails() {
     completionHint.textContent = prdGenerationError;
   } else if (specInspectionError) {
     completionHint.textContent = specInspectionError;
+  } else if (!hasProductName) {
+    completionHint.textContent = "Enter a product name before completing this stage.";
   } else if (!hasProductType) {
     completionHint.textContent = "Select a product type before completing this stage.";
+  } else if (!hasFormFactor) {
+    completionHint.textContent = "Enter a form factor before completing this stage.";
   } else if (!hasBomTarget) {
     completionHint.textContent = "Set a BOM target before completing this stage.";
   } else if (!allDocumented) {
@@ -643,6 +661,31 @@ productTypeSelect.addEventListener("change", () => {
 bomTargetInput.addEventListener("change", () => {
   updateBomTarget(bomTargetInput.value);
 });
+
+productNameInput.addEventListener("change", () => {
+  const product = activeProduct();
+  if (!product) return;
+  const val = productNameInput.value.trim();
+  if (product.productName !== val) {
+    product.productName = val;
+    logActivity(val ? `Product name set to ${val}` : "Product name cleared");
+    persist();
+    render();
+  }
+});
+
+formFactorInput.addEventListener("change", () => {
+  const product = activeProduct();
+  if (!product) return;
+  const val = formFactorInput.value.trim();
+  if (product.formFactor !== val) {
+    product.formFactor = val;
+    logActivity(val ? `Form factor set to ${val}` : "Form factor cleared");
+    persist();
+    render();
+  }
+});
+
 inspectSpecButton.addEventListener("click", () => {
   const product = activeProduct();
   if (!product || inspectSpecButton.disabled || isInspectingSpec) return;
@@ -749,7 +792,7 @@ function createProductId() {
 
 function hasLegacyProductData(saved) {
   if (!saved || typeof saved !== "object") return false;
-  if (saved.productType || normalizePrice(saved.bomTarget) > 0) return true;
+  if (saved.productName || saved.formFactor || saved.productType || normalizePrice(saved.bomTarget) > 0) return true;
   if (Array.isArray(saved.completed) && saved.completed.some(Boolean)) return true;
   if (Array.isArray(saved.notes) && saved.notes.some((note) => typeof note === "string" && note.trim())) return true;
   if (Array.isArray(saved.checklistContexts) && saved.checklistContexts.flat().some((item) => typeof item === "string" && item.trim())) return true;
@@ -758,6 +801,9 @@ function hasLegacyProductData(saved) {
 }
 
 function productDisplayName(product) {
+  if (product.productName && product.productName.trim()) {
+    return summarizeContext(product.productName);
+  }
   const description = product.checklistContexts?.[0]?.[0]?.trim();
   if (description) return summarizeContext(description);
   if (product.productType) return product.productType;
@@ -1112,8 +1158,9 @@ function buildPrdPayload(stageIndex) {
       evidenceRequired: stage.evidence
     },
     product: {
-      name: productDisplayName(product),
+      name: product.productName?.trim() || productDisplayName(product),
       type: product.productType,
+      formFactor: product.formFactor || "",
       bomTarget: product.bomTarget
     },
     checklist: stage.checklist.map((item, checkIndex) => {
@@ -1121,8 +1168,7 @@ function buildPrdPayload(stageIndex) {
         return {
           item,
           type: "use_cases",
-          useCases: product.checklistFeatures[stageIndex][checkIndex],
-          features: product.checklistFeatures[stageIndex][checkIndex]
+          useCases: product.checklistFeatures[stageIndex][checkIndex]
         };
       }
 

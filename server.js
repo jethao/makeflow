@@ -120,7 +120,7 @@ async function callOpenAIForSpecReview(apiKey, specDocument) {
           content: [
             {
               type: "input_text",
-              text: "You are a senior product and engineering reviewer. Review the supplied product spec JSON for readiness to generate a PRD. If it is complete, internally consistent, testable, and has enough detail, return exactly: approved. If not, return a concise list of the blocking gaps and concrete fixes. Do not return approved unless there are no blocking gaps."
+              text: "You are a senior product and engineering reviewer. Review the supplied product spec JSON for readiness to generate a PRD. Ignore minor discrepancies (e.g. small wording, formatting, or non-blocking details). If it is complete, internally consistent, testable, and has enough detail, return exactly: approved. If not, return a concise list of the blocking gaps and concrete fixes. Do not return approved unless there are no blocking gaps."
             }
           ]
         },
