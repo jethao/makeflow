@@ -10,21 +10,42 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="brand-group">
-          <button class="icon-button" type="button" aria-label="Open navigation">
+          <button id="navDashboardButton" class="icon-button" type="button" aria-label="Open product dashboard">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
           </button>
           <h1>Makeflow</h1>
         </div>
-        <div class="product-title">
+        <button id="dashboardButton" class="product-title" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>
-          <span>Idea to Production</span>
-        </div>
+          <span id="topbarProductLabel">Product dashboard</span>
+        </button>
         <div class="top-actions">
           <button class="avatar-button" type="button" aria-label="Current user">AK</button>
         </div>
       </header>
 
-      <main class="workspace">
+      <main id="dashboardView" class="dashboard-view">
+        <section id="emptyDashboard" class="empty-dashboard">
+          <button id="emptyAddProductButton" class="add-product-button" type="button" aria-label="Add new product">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </section>
+
+        <section id="productDashboard" class="product-dashboard is-hidden" aria-label="Product dashboard">
+          <div class="dashboard-header">
+            <div>
+              <h2>Product dashboard</h2>
+              <p>Track idea-to-production progress across active products.</p>
+            </div>
+            <button id="dashboardAddProductButton" class="icon-action-button" type="button" aria-label="Add new product">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+          <div id="productGrid" class="product-grid"></div>
+        </section>
+      </main>
+
+      <main id="workflowView" class="workspace is-hidden">
         <aside class="step-panel" aria-label="Workflow steps">
           <div class="panel-title">Workflow</div>
           <ol id="stepList" class="step-list"></ol>
@@ -174,6 +195,25 @@
         <div class="modal-footer">
           <button id="prdReviewCancelButton" class="secondary-button" type="button">Cancel</button>
           <button id="prdReviewConfirmButton" class="primary-button" type="button" disabled>Confirm and generate</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="deleteProductModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="deleteProductTitle">
+      <section class="modal-panel confirm-panel">
+        <div class="modal-header">
+          <div>
+            <span>Product dashboard</span>
+            <h3 id="deleteProductTitle">Delete product?</h3>
+          </div>
+          <button id="deleteProductCloseButton" class="icon-button" type="button" aria-label="Close delete product confirmation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <p id="deleteProductMessage" class="confirm-message"></p>
+        <div class="modal-footer">
+          <button id="deleteProductCancelButton" class="secondary-button" type="button">Cancel</button>
+          <button id="deleteProductConfirmButton" class="danger-button" type="button">Delete</button>
         </div>
       </section>
     </div>

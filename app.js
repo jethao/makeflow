@@ -114,8 +114,18 @@ Acceptance criteria (create test cases):
 Metrics:`;
 
 const state = loadState();
-let selectedIndex = Math.min(state.selectedIndex || 0, stages.length - 1);
+let selectedIndex = Math.min(activeProduct()?.selectedIndex || 0, stages.length - 1);
 
+const dashboardButton = document.querySelector("#dashboardButton");
+const navDashboardButton = document.querySelector("#navDashboardButton");
+const topbarProductLabel = document.querySelector("#topbarProductLabel");
+const dashboardView = document.querySelector("#dashboardView");
+const emptyDashboard = document.querySelector("#emptyDashboard");
+const emptyAddProductButton = document.querySelector("#emptyAddProductButton");
+const productDashboard = document.querySelector("#productDashboard");
+const dashboardAddProductButton = document.querySelector("#dashboardAddProductButton");
+const productGrid = document.querySelector("#productGrid");
+const workflowView = document.querySelector("#workflowView");
 const stepList = document.querySelector("#stepList");
 const stageTitle = document.querySelector("#stageTitle");
 const stageStatus = document.querySelector("#stageStatus");
@@ -150,14 +160,67 @@ const prdReviewCancelButton = document.querySelector("#prdReviewCancelButton");
 const prdReviewConfirmButton = document.querySelector("#prdReviewConfirmButton");
 const allowOpenAiToggle = document.querySelector("#allowOpenAiToggle");
 const openAiToggleStatus = document.querySelector("#openAiToggleStatus");
+const deleteProductModal = document.querySelector("#deleteProductModal");
+const deleteProductMessage = document.querySelector("#deleteProductMessage");
+const deleteProductCloseButton = document.querySelector("#deleteProductCloseButton");
+const deleteProductCancelButton = document.querySelector("#deleteProductCancelButton");
+const deleteProductConfirmButton = document.querySelector("#deleteProductConfirmButton");
 
 let activeContext = null;
 let pendingPrdStageIndex = null;
+let pendingDeleteProductId = null;
 let isGeneratingPrd = false;
 let prdGenerationError = "";
 
 function loadState() {
-  const initial = {
+  const empty = {
+    products: [],
+    selectedProductId: null
+  };
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!saved) return empty;
+
+    if (Array.isArray(saved.products)) {
+      const products = saved.products.map(normalizeProduct).filter(Boolean);
+      return {
+        products,
+        selectedProductId: products.some((product) => product.id === saved.selectedProductId) ? saved.selectedProductId : null
+      };
+    }
+
+    if (!hasLegacyProductData(saved)) return empty;
+
+    const product = createProduct({
+      id: saved.productId || createProductId(),
+      createdAt: saved.createdAt || new Date().toISOString(),
+      completed: stages.map((_, index) => Boolean(saved.completed?.[index])),
+      checks: stages.map((_, index) => Array.isArray(saved.checks?.[index]) ? saved.checks[index] : []),
+      checklistContexts: stages.map((stage, index) => normalizeContexts(saved.checklistContexts?.[index], stage.checklist.length)),
+      checklistFeatures: stages.map((stage, index) => normalizeFeatureLists(saved.checklistFeatures?.[index], stage.checklist.length)),
+      productType: typeof saved.productType === "string" ? saved.productType : "",
+      bomTarget: normalizePrice(saved.bomTarget),
+      targetDates: stages.map((_, index) => typeof saved.targetDates?.[index] === "string" ? saved.targetDates[index] : defaultDates[index]),
+      prdOutputs: stages.map((_, index) => normalizePrdOutput(saved.prdOutputs?.[index])),
+      notes: stages.map((_, index) => saved.notes?.[index] || ""),
+      activity: normalizeActivity(saved.activity),
+      selectedIndex: Math.min(saved.selectedIndex || 0, stages.length - 1)
+    });
+
+    return {
+      products: [product],
+      selectedProductId: null
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function createProduct(overrides = {}) {
+  return {
+    id: createProductId(),
+    createdAt: new Date().toISOString(),
     completed: Array(stages.length).fill(false),
     checks: stages.map(() => []),
     checklistContexts: stages.map((stage) => Array(stage.checklist.length).fill("")),
@@ -168,42 +231,50 @@ function loadState() {
     prdOutputs: Array(stages.length).fill(null),
     notes: Array(stages.length).fill(""),
     activity: [createActivity("Workflow started")],
-    selectedIndex: 0
+    selectedIndex: 0,
+    ...overrides
   };
+}
 
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!saved) return initial;
-    return {
-      ...initial,
-      ...saved,
-      completed: stages.map((_, index) => Boolean(saved.completed?.[index])),
-      checks: stages.map((_, index) => Array.isArray(saved.checks?.[index]) ? saved.checks[index] : []),
-      checklistContexts: stages.map((stage, index) => normalizeContexts(saved.checklistContexts?.[index], stage.checklist.length)),
-      checklistFeatures: stages.map((stage, index) => normalizeFeatureLists(saved.checklistFeatures?.[index], stage.checklist.length)),
-      productType: typeof saved.productType === "string" ? saved.productType : "",
-      bomTarget: normalizePrice(saved.bomTarget),
-      targetDates: stages.map((_, index) => typeof saved.targetDates?.[index] === "string" ? saved.targetDates[index] : defaultDates[index]),
-      prdOutputs: stages.map((_, index) => normalizePrdOutput(saved.prdOutputs?.[index])),
-      notes: stages.map((_, index) => saved.notes?.[index] || ""),
-      activity: normalizeActivity(saved.activity)
-    };
-  } catch {
-    return initial;
-  }
+function normalizeProduct(product) {
+  if (!product || typeof product !== "object") return null;
+
+  return createProduct({
+    id: typeof product.id === "string" ? product.id : createProductId(),
+    createdAt: typeof product.createdAt === "string" ? product.createdAt : new Date().toISOString(),
+    completed: stages.map((_, index) => Boolean(product.completed?.[index])),
+    checks: stages.map((_, index) => Array.isArray(product.checks?.[index]) ? product.checks[index] : []),
+    checklistContexts: stages.map((stage, index) => normalizeContexts(product.checklistContexts?.[index], stage.checklist.length)),
+    checklistFeatures: stages.map((stage, index) => normalizeFeatureLists(product.checklistFeatures?.[index], stage.checklist.length)),
+    productType: typeof product.productType === "string" ? product.productType : "",
+    bomTarget: normalizePrice(product.bomTarget),
+    targetDates: stages.map((_, index) => typeof product.targetDates?.[index] === "string" ? product.targetDates[index] : defaultDates[index]),
+    prdOutputs: stages.map((_, index) => normalizePrdOutput(product.prdOutputs?.[index])),
+    notes: stages.map((_, index) => product.notes?.[index] || ""),
+    activity: normalizeActivity(product.activity),
+    selectedIndex: Math.min(product.selectedIndex || 0, stages.length - 1)
+  });
 }
 
 function persist() {
-  state.selectedIndex = selectedIndex;
+  const product = activeProduct();
+  if (product) product.selectedIndex = selectedIndex;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function activeProduct() {
+  return state.products.find((product) => product.id === state.selectedProductId) || null;
+}
+
 function isUnlocked(index) {
-  return index === 0 || state.completed[index - 1];
+  const product = activeProduct();
+  return Boolean(product) && (index === 0 || product.completed[index - 1]);
 }
 
 function statusFor(index) {
-  if (state.completed[index]) return "completed";
+  const product = activeProduct();
+  if (!product) return "locked";
+  if (product.completed[index]) return "completed";
   if (!isUnlocked(index)) return "locked";
   return "current";
 }
@@ -244,10 +315,13 @@ function renderSteps() {
 }
 
 function renderDetails() {
+  const product = activeProduct();
+  if (!product) return;
+
   const stage = stages[selectedIndex];
   const status = statusFor(selectedIndex);
   const statusText = status === "completed" ? "Completed" : status === "locked" ? "Blocked" : "In progress";
-  const contexts = state.checklistContexts[selectedIndex];
+  const contexts = product.checklistContexts[selectedIndex];
   const documentedCount = getDocumentedCount(selectedIndex);
 
   stageTitle.textContent = `${selectedIndex + 1}. ${stage.name}`;
@@ -255,16 +329,16 @@ function renderDetails() {
   stageStatus.className = `status-label ${status}`;
   stageSummary.textContent = stage.summary;
   stageOwner.textContent = stage.owner;
-  stageDateInput.value = state.targetDates[selectedIndex];
+  stageDateInput.value = product.targetDates[selectedIndex];
   stageDateInput.disabled = status === "locked";
   stageDateInput.setAttribute("aria-label", `${stage.name} target date`);
   stageDeliverable.textContent = stage.deliverable;
   gateText.textContent = stage.gate;
   evidenceText.textContent = stage.evidence;
   blockedByText.textContent = selectedIndex === 0 ? "No prior stage. This is the entry point." : stages[selectedIndex - 1].name;
-  productTypeSelect.value = state.productType;
+  productTypeSelect.value = product.productType;
   productTypeSelect.disabled = status === "locked";
-  bomTargetInput.value = state.bomTarget;
+  bomTargetInput.value = product.bomTarget;
   bomTargetInput.disabled = status === "locked";
 
   checklist.innerHTML = stage.checklist.map((item, index) => {
@@ -289,19 +363,19 @@ function renderDetails() {
   }).join("");
 
   checklistCount.textContent = `${documentedCount} / ${stage.checklist.length} documented`;
-  notesInput.value = state.notes[selectedIndex];
+  notesInput.value = product.notes[selectedIndex];
   notesInput.disabled = status === "locked";
 
   const allDocumented = documentedCount === stage.checklist.length;
-  const hasProductType = Boolean(state.productType);
-  const hasBomTarget = state.bomTarget > 0;
+  const hasProductType = Boolean(product.productType);
+  const hasBomTarget = product.bomTarget > 0;
   completeButton.disabled = isGeneratingPrd || status === "locked" || status === "completed" || !allDocumented || !hasProductType || !hasBomTarget;
   completeButton.innerHTML = getCompleteButtonMarkup(status);
 
   if (status === "locked") {
     completionHint.textContent = `Complete ${stages[selectedIndex - 1].name} before this step can start.`;
   } else if (status === "completed") {
-    const output = state.prdOutputs[selectedIndex];
+    const output = product.prdOutputs[selectedIndex];
     completionHint.textContent = output?.outputFile
       ? `PRD saved locally at ${output.outputFile}.`
       : "This gate is complete. You can review notes or move to the next unlocked stage.";
@@ -342,7 +416,8 @@ function renderDetails() {
 }
 
 function renderActivity() {
-  const items = [...state.activity].reverse();
+  const product = activeProduct();
+  const items = [...(product?.activity || [])].reverse();
   activityList.innerHTML = items.map((item) => `
     <li>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
@@ -360,7 +435,9 @@ function completeCurrentStep() {
 }
 
 async function generateConfirmedPrd() {
+  const product = activeProduct();
   if (pendingPrdStageIndex === null || isGeneratingPrd) return;
+  if (!product) return;
   if (!allowOpenAiToggle.checked) {
     updatePrdReviewActionState();
     return;
@@ -376,12 +453,12 @@ async function generateConfirmedPrd() {
 
   try {
     const result = await generatePrd(stageIndex);
-    state.prdOutputs[stageIndex] = {
+    product.prdOutputs[stageIndex] = {
       inputFile: result.inputFile,
       outputFile: result.outputFile,
       generatedAt: new Date().toISOString()
     };
-    state.completed[stageIndex] = true;
+    product.completed[stageIndex] = true;
     logActivity(`${stages[stageIndex].name} PRD generated at ${result.outputFile}`);
 
     if (stageIndex < stages.length - 1) {
@@ -399,8 +476,22 @@ async function generateConfirmedPrd() {
 }
 
 function render() {
+  renderDashboard();
+
+  const product = activeProduct();
+  if (!product) {
+    dashboardView.classList.remove("is-hidden");
+    workflowView.classList.add("is-hidden");
+    topbarProductLabel.textContent = "Product dashboard";
+    return;
+  }
+
+  dashboardView.classList.add("is-hidden");
+  workflowView.classList.remove("is-hidden");
+  topbarProductLabel.textContent = productDisplayName(product);
+
   if (!isUnlocked(selectedIndex)) {
-    selectedIndex = state.completed.findIndex((done, index) => !done && isUnlocked(index));
+    selectedIndex = product.completed.findIndex((done, index) => !done && isUnlocked(index));
     if (selectedIndex === -1) selectedIndex = stages.length - 1;
   }
 
@@ -409,8 +500,64 @@ function render() {
   renderActivity();
 }
 
+function renderDashboard() {
+  const hasProducts = state.products.length > 0;
+  emptyDashboard.classList.toggle("is-hidden", hasProducts);
+  productDashboard.classList.toggle("is-hidden", !hasProducts);
+
+  if (!hasProducts) {
+    productGrid.innerHTML = "";
+    return;
+  }
+
+  productGrid.innerHTML = state.products.map((product) => {
+    const progress = productCompletionPercent(product);
+    const currentStage = currentStageName(product);
+    return `
+      <article class="product-card">
+        <div class="product-card-top">
+          <span class="product-icon">${productIcon(product)}</span>
+          <button class="product-delete-button" type="button" data-delete-product-id="${escapeHtml(product.id)}" aria-label="Delete ${escapeHtml(productDisplayName(product))}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15"/></svg>
+          </button>
+        </div>
+        <span class="product-card-main">
+          <strong>${escapeHtml(productDisplayName(product))}</strong>
+          <span>${escapeHtml(product.productType || currentStage)}</span>
+        </span>
+        <span class="completion-bar" aria-label="${progress}% complete">
+          <span style="width: ${progress}%"></span>
+        </span>
+        <span class="completion-label">${progress}% complete</span>
+        <button class="secondary-button product-open-button" type="button" data-product-id="${escapeHtml(product.id)}">Open</button>
+      </article>
+    `;
+  }).join("");
+}
+
+function createAndOpenProduct() {
+  const product = createProduct();
+  state.products.push(product);
+  openProduct(product.id);
+  logActivity("Product created");
+  persist();
+  render();
+}
+
+function openProduct(productId) {
+  const product = state.products.find((item) => item.id === productId);
+  if (!product) return;
+
+  state.selectedProductId = product.id;
+  selectedIndex = Math.min(product.selectedIndex || 0, stages.length - 1);
+  persist();
+  render();
+}
+
 notesInput.addEventListener("input", () => {
-  state.notes[selectedIndex] = notesInput.value;
+  const product = activeProduct();
+  if (!product) return;
+  product.notes[selectedIndex] = notesInput.value;
   saveState.textContent = "Saving...";
   persist();
   window.clearTimeout(notesInput.saveTimer);
@@ -420,21 +567,49 @@ notesInput.addEventListener("input", () => {
 });
 
 stageDateInput.addEventListener("change", () => {
-  state.targetDates[selectedIndex] = stageDateInput.value;
+  const product = activeProduct();
+  if (!product) return;
+  product.targetDates[selectedIndex] = stageDateInput.value;
   logActivity(`${stages[selectedIndex].name} target date updated`);
   persist();
   renderActivity();
 });
 
 productTypeSelect.addEventListener("change", () => {
-  state.productType = productTypeSelect.value;
-  logActivity(state.productType ? `Product type set to ${state.productType}` : "Product type cleared");
+  const product = activeProduct();
+  if (!product) return;
+  product.productType = productTypeSelect.value;
+  logActivity(product.productType ? `Product type set to ${product.productType}` : "Product type cleared");
   persist();
   render();
 });
 
 bomTargetInput.addEventListener("change", () => {
   updateBomTarget(bomTargetInput.value);
+});
+
+dashboardButton.addEventListener("click", () => {
+  state.selectedProductId = null;
+  persist();
+  render();
+});
+navDashboardButton.addEventListener("click", () => {
+  state.selectedProductId = null;
+  persist();
+  render();
+});
+emptyAddProductButton.addEventListener("click", createAndOpenProduct);
+dashboardAddProductButton.addEventListener("click", createAndOpenProduct);
+productGrid.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest("[data-delete-product-id]");
+  if (deleteButton) {
+    openDeleteProductModal(deleteButton.dataset.deleteProductId);
+    return;
+  }
+
+  const openButton = event.target.closest("[data-product-id]");
+  if (!openButton) return;
+  openProduct(openButton.dataset.productId);
 });
 
 modalCloseButton.addEventListener("click", closeContextModal);
@@ -451,12 +626,20 @@ allowOpenAiToggle.addEventListener("change", updatePrdReviewActionState);
 prdReviewModal.addEventListener("click", (event) => {
   if (event.target === prdReviewModal) closePrdReviewModal();
 });
+deleteProductCloseButton.addEventListener("click", closeDeleteProductModal);
+deleteProductCancelButton.addEventListener("click", closeDeleteProductModal);
+deleteProductConfirmButton.addEventListener("click", deletePendingProduct);
+deleteProductModal.addEventListener("click", (event) => {
+  if (event.target === deleteProductModal) closeDeleteProductModal();
+});
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !contextModal.classList.contains("is-hidden")) {
     closeContextModal();
   } else if (event.key === "Escape" && !prdReviewModal.classList.contains("is-hidden")) {
     closePrdReviewModal();
+  } else if (event.key === "Escape" && !deleteProductModal.classList.contains("is-hidden")) {
+    closeDeleteProductModal();
   }
 });
 
@@ -476,6 +659,73 @@ function parseDisplayDate(value) {
   const month = String(parsed.getMonth() + 1).padStart(2, "0");
   const day = String(parsed.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function createProductId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `product-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function hasLegacyProductData(saved) {
+  if (!saved || typeof saved !== "object") return false;
+  if (saved.productType || normalizePrice(saved.bomTarget) > 0) return true;
+  if (Array.isArray(saved.completed) && saved.completed.some(Boolean)) return true;
+  if (Array.isArray(saved.notes) && saved.notes.some((note) => typeof note === "string" && note.trim())) return true;
+  if (Array.isArray(saved.checklistContexts) && saved.checklistContexts.flat().some((item) => typeof item === "string" && item.trim())) return true;
+  if (Array.isArray(saved.checklistFeatures) && saved.checklistFeatures.flat(2).some((item) => typeof item === "string" && item.trim())) return true;
+  return false;
+}
+
+function productDisplayName(product) {
+  const description = product.checklistContexts?.[0]?.[0]?.trim();
+  if (description) return summarizeContext(description);
+  if (product.productType) return product.productType;
+  const index = state.products.findIndex((item) => item.id === product.id);
+  return `Product ${index + 1}`;
+}
+
+function productCompletionPercent(product) {
+  const completed = product.completed.filter(Boolean).length;
+  return Math.round((completed / stages.length) * 100);
+}
+
+function currentStageName(product) {
+  const index = product.completed.findIndex((done) => !done);
+  return index === -1 ? "Complete" : stages[index].name;
+}
+
+function productIcon(product) {
+  if (product.productType === "Industrial IoT") return "II";
+  if (product.productType === "Smart appliance products") return "SA";
+  if (product.productType === "Connected devices") return "CD";
+  return "P";
+}
+
+function openDeleteProductModal(productId) {
+  const product = state.products.find((item) => item.id === productId);
+  if (!product) return;
+
+  pendingDeleteProductId = product.id;
+  deleteProductMessage.textContent = `This will remove ${productDisplayName(product)} and its saved workflow inputs from this browser.`;
+  deleteProductModal.classList.remove("is-hidden");
+  deleteProductConfirmButton.focus();
+}
+
+function closeDeleteProductModal() {
+  pendingDeleteProductId = null;
+  deleteProductModal.classList.add("is-hidden");
+}
+
+function deletePendingProduct() {
+  if (!pendingDeleteProductId) return;
+
+  state.products = state.products.filter((product) => product.id !== pendingDeleteProductId);
+  if (state.selectedProductId === pendingDeleteProductId) {
+    state.selectedProductId = null;
+  }
+  closeDeleteProductModal();
+  persist();
+  render();
 }
 
 function normalizeContexts(contexts, length) {
@@ -515,18 +765,22 @@ function isFeatureItem(item) {
 }
 
 function getDocumentedCount(stageIndex) {
+  const product = activeProduct();
+  if (!product) return 0;
+
   const stage = stages[stageIndex];
   return stage.checklist.reduce((count, item, index) => {
     if (isFeatureItem(item)) {
-      return count + (state.checklistFeatures[stageIndex][index].length > 0 ? 1 : 0);
+      return count + (product.checklistFeatures[stageIndex][index].length > 0 ? 1 : 0);
     }
 
-    return count + (state.checklistContexts[stageIndex][index].trim() ? 1 : 0);
+    return count + (product.checklistContexts[stageIndex][index].trim() ? 1 : 0);
   }, 0);
 }
 
 function renderFeatureChecklistItem(stage, stageIndex, checkIndex, status) {
-  const features = state.checklistFeatures[stageIndex][checkIndex];
+  const product = activeProduct();
+  const features = product?.checklistFeatures[stageIndex][checkIndex] || [];
   const hasFeatures = features.length > 0;
   const disabled = status === "locked" ? "disabled" : "";
 
@@ -565,24 +819,30 @@ function summarizeFeature(value) {
 }
 
 function openContextModal(checkIndex) {
+  const product = activeProduct();
+  if (!product) return;
+
   const stage = stages[selectedIndex];
   activeContext = { type: "context", stageIndex: selectedIndex, checkIndex };
   modalStage.textContent = stage.name;
   modalTitle.textContent = stage.checklist[checkIndex];
   contextInput.previousElementSibling.textContent = "Description";
-  contextInput.value = state.checklistContexts[selectedIndex][checkIndex] || "";
+  contextInput.value = product.checklistContexts[selectedIndex][checkIndex] || "";
   modalSaveState.textContent = "Saved on close";
   contextModal.classList.remove("is-hidden");
   contextInput.focus();
 }
 
 function openFeatureModal(checkIndex, featureIndex = null) {
+  const product = activeProduct();
+  if (!product) return;
+
   const stage = stages[selectedIndex];
   activeContext = { type: "feature", stageIndex: selectedIndex, checkIndex, featureIndex };
   modalStage.textContent = `${stage.name} · Primary use cases`;
   modalTitle.textContent = featureIndex === null ? "New feature" : "Edit feature";
   contextInput.previousElementSibling.textContent = "Feature details";
-  contextInput.value = featureIndex === null ? FEATURE_TEMPLATE : state.checklistFeatures[selectedIndex][checkIndex][featureIndex];
+  contextInput.value = featureIndex === null ? FEATURE_TEMPLATE : product.checklistFeatures[selectedIndex][checkIndex][featureIndex];
   modalSaveState.textContent = "Saved on close";
   contextModal.classList.remove("is-hidden");
   contextInput.focus();
@@ -600,8 +860,11 @@ function closeContextModal() {
   if (activeContext.type === "feature") {
     saveFeatureContext(activeContext, next);
   } else {
-    const previous = state.checklistContexts[stageIndex][checkIndex] || "";
-    state.checklistContexts[stageIndex][checkIndex] = next;
+    const product = activeProduct();
+    if (!product) return;
+
+    const previous = product.checklistContexts[stageIndex][checkIndex] || "";
+    product.checklistContexts[stageIndex][checkIndex] = next;
 
     if (previous !== next) {
       logActivity(`${stages[stageIndex].checklist[checkIndex]} updated`);
@@ -615,7 +878,10 @@ function closeContextModal() {
 }
 
 function saveFeatureContext(context, value) {
-  const features = state.checklistFeatures[context.stageIndex][context.checkIndex];
+  const product = activeProduct();
+  if (!product) return;
+
+  const features = product.checklistFeatures[context.stageIndex][context.checkIndex];
   const text = value.trim() ? value : FEATURE_TEMPLATE;
 
   if (context.featureIndex === null) {
@@ -631,7 +897,10 @@ function saveFeatureContext(context, value) {
 }
 
 function deleteFeature(checkIndex, featureIndex) {
-  state.checklistFeatures[selectedIndex][checkIndex].splice(featureIndex, 1);
+  const product = activeProduct();
+  if (!product) return;
+
+  product.checklistFeatures[selectedIndex][checkIndex].splice(featureIndex, 1);
   logActivity("Primary use cases feature deleted");
   persist();
   render();
@@ -664,12 +933,15 @@ function updatePrdReviewActionState() {
 }
 
 function updateBomTarget(value) {
+  const product = activeProduct();
+  if (!product) return;
+
   const next = normalizePrice(value);
-  if (state.bomTarget !== next) {
+  if (product.bomTarget !== next) {
     logActivity(`BOM target set to $${next}`);
   }
 
-  state.bomTarget = next;
+  product.bomTarget = next;
   persist();
   render();
 }
@@ -703,6 +975,9 @@ async function generatePrd(stageIndex) {
 }
 
 function buildPrdPayload(stageIndex) {
+  const product = activeProduct();
+  if (!product) return {};
+
   const stage = stages[stageIndex];
 
   return {
@@ -711,35 +986,36 @@ function buildPrdPayload(stageIndex) {
       name: stage.name,
       summary: stage.summary,
       owner: stage.owner,
-      targetDate: state.targetDates[stageIndex],
+      targetDate: product.targetDates[stageIndex],
       deliverable: stage.deliverable,
       decisionGate: stage.gate,
       evidenceRequired: stage.evidence
     },
     product: {
-      type: state.productType,
-      bomTarget: state.bomTarget
+      name: productDisplayName(product),
+      type: product.productType,
+      bomTarget: product.bomTarget
     },
     checklist: stage.checklist.map((item, checkIndex) => {
       if (isFeatureItem(item)) {
         return {
           item,
           type: "features",
-          features: state.checklistFeatures[stageIndex][checkIndex]
+          features: product.checklistFeatures[stageIndex][checkIndex]
         };
       }
 
       return {
         item,
         type: "description",
-        description: state.checklistContexts[stageIndex][checkIndex]
+        description: product.checklistContexts[stageIndex][checkIndex]
       };
     }),
-    notes: state.notes[stageIndex],
+    notes: product.notes[stageIndex],
     priorStages: stages.slice(0, stageIndex).map((priorStage, index) => ({
       name: priorStage.name,
-      completed: state.completed[index],
-      prdOutput: state.prdOutputs[index]
+      completed: product.completed[index],
+      prdOutput: product.prdOutputs[index]
     }))
   };
 }
@@ -761,7 +1037,9 @@ function createActivity(message, timestamp = new Date().toISOString()) {
 }
 
 function logActivity(message) {
-  state.activity.push(createActivity(message));
+  const product = activeProduct();
+  if (!product) return;
+  product.activity.push(createActivity(message));
 }
 
 function normalizeActivity(activity) {
