@@ -882,6 +882,12 @@ svg {
   font-size: 14px;
 }
 
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .primary-button {
   min-width: 170px;
   height: 48px;
@@ -1030,6 +1036,7 @@ svg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 9px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--surface);
@@ -1044,6 +1051,13 @@ svg {
   border-color: var(--blue);
   outline: 0;
   box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.1);
+}
+
+.secondary-button:disabled {
+  color: var(--faint);
+  background: #eef2f7;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .danger-button {
@@ -1285,6 +1299,15 @@ svg {
   .action-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .action-buttons {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .secondary-button {
+    width: 100%;
   }
 
   .primary-button {
