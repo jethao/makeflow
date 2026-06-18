@@ -255,7 +255,10 @@ async function serveStatic(pathname, response, headOnly) {
 }
 
 function sendJson(response, status, payload) {
-  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*"
+  });
   response.end(JSON.stringify(payload));
 }
 
@@ -285,12 +288,28 @@ function listen(port, attempts = 0) {
 
   server.listen(port, () => {
     console.log(`Makeflow is running at http://localhost:${port}`);
+    console.log("API keys visible to server:");
+    console.log("  OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "set" : "NOT SET");
+    console.log("  XAI_API_KEY:", process.env.XAI_API_KEY ? "set" : "NOT SET");
   });
 }
 
 async function handleRequest(request, response) {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
+
+    if (request.method === "OPTIONS") {
+      if (url.pathname === "/api/inspect-spec" || url.pathname === "/api/generate-prd") {
+        response.writeHead(204, {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Max-Age": "86400"
+        });
+        response.end();
+        return;
+      }
+    }
 
     if (request.method === "POST" && url.pathname === "/api/inspect-spec") {
       await handleInspectSpec(request, response);
