@@ -134,7 +134,6 @@ const notesInput = document.querySelector("#notesInput");
 const saveState = document.querySelector("#saveState");
 const completionHint = document.querySelector("#completionHint");
 const completeButton = document.querySelector("#completeButton");
-const nextPreview = document.querySelector("#nextPreview");
 const activityList = document.querySelector("#activityList");
 const contextModal = document.querySelector("#contextModal");
 const modalStage = document.querySelector("#modalStage");
@@ -342,35 +341,6 @@ function renderDetails() {
   });
 }
 
-function renderNextPreview() {
-  const nextIndex = selectedIndex + 1;
-  if (selectedIndex === stages.length - 1 && !state.completed[selectedIndex]) {
-    nextPreview.innerHTML = `
-      <h4>No following stage</h4>
-      <p>Complete Maintenance once post-launch monitoring, quality triage, and lifecycle ownership are active.</p>
-    `;
-    return;
-  }
-
-  if (nextIndex >= stages.length) {
-    nextPreview.innerHTML = `
-      <h4>Production workflow complete</h4>
-      <p>Maintenance is now the operating rhythm for quality, feedback, and lifecycle decisions.</p>
-    `;
-    return;
-  }
-
-  const next = stages[nextIndex];
-  const nextStatus = statusFor(nextIndex) === "locked" ? "Blocked" : "Ready";
-  nextPreview.innerHTML = `
-    <h4>${nextIndex + 1}. ${next.name} · ${nextStatus}</h4>
-    <p>${next.summary}</p>
-    <ul class="preview-requirements">
-      ${next.checklist.slice(0, 3).map((item) => `<li>${item}</li>`).join("")}
-    </ul>
-  `;
-}
-
 function renderActivity() {
   const items = [...state.activity].reverse();
   activityList.innerHTML = items.map((item) => `
@@ -436,7 +406,6 @@ function render() {
 
   renderSteps();
   renderDetails();
-  renderNextPreview();
   renderActivity();
 }
 
