@@ -224,6 +224,26 @@
       </section>
     </div>
 
+    <div id="specInspectModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="specInspectTitle">
+      <section class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <span id="specInspectStage"></span>
+            <h3 id="specInspectTitle">Confirm spec inspection</h3>
+          </div>
+          <button id="specInspectCloseButton" class="icon-button" type="button" aria-label="Close spec inspection confirmation">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <p>Review the payload JSON before sending to OpenAI for spec inspection.</p>
+        <pre id="specInspectJson" class="spec-inspect-json"></pre>
+        <div class="modal-footer">
+          <button id="specInspectCancelButton" class="secondary-button" type="button">Cancel</button>
+          <button id="specInspectOkButton" class="primary-button" type="button">OK - Start inspection</button>
+        </div>
+      </section>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>
