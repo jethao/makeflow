@@ -508,8 +508,7 @@ svg {
 }
 
 .meta-grid span,
-.meta-grid label,
-.notes-row label {
+.meta-grid label {
   display: block;
   color: var(--muted);
   font-size: 12px;
@@ -956,37 +955,6 @@ svg {
   font-family: inherit;
   font-size: 14px;
   line-height: 1.55;
-}
-
-.notes-row {
-  margin-top: 18px;
-}
-
-.notes-row textarea {
-  width: 100%;
-  min-height: 102px;
-  margin-top: 8px;
-  padding: 14px;
-  resize: vertical;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 15px;
-  line-height: 1.45;
-  outline: none;
-}
-
-.notes-row textarea:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.13);
-}
-
-#saveState {
-  display: block;
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 13px;
 }
 
 .action-row {
