@@ -299,13 +299,19 @@
       try {
         const result = await window.generatePrd(stageIndex);
         if (!product.prdOutputs) product.prdOutputs = [];
+        const prev = product.prdOutputs && product.prdOutputs[stageIndex];
         product.prdOutputs[stageIndex] = {
           inputFile: result.inputFile,
           outputFile: result.outputFile,
           generatedAt: new Date().toISOString(),
-          content: result.prd || ""
+          content: result.prd || "",
+          comments: (prev && Array.isArray(prev.comments)) ? prev.comments : []
         };
         product.completed[stageIndex] = true;
+        // When PRD is generated from Spec (stage 0), also satisfy the PRD review stage so later stages unlock
+        if (stageIndex === 0) {
+          product.completed[1] = true;
+        }
         if (window.logActivity) window.logActivity(`${window.stages ? window.stages[stageIndex].name : 'Stage'} PRD generated at ${result.outputFile}`);
 
         if (window.stages && stageIndex < window.stages.length - 1) {
@@ -360,7 +366,16 @@
     if (titleEl) titleEl.textContent = "PRD Generated";
 
     if (prdReviewContent) {
-      prdReviewContent.innerHTML = `<div>PRD has been successfully generated and saved.<br><br>File: <strong>${result.outputFile || 'N/A'}</strong></div>`;
+      const fileInfo = result && result.outputFile ? `<div style="margin-top:8px; font-size:12px; opacity:0.8;">Saved to ${result.outputFile}</div>` : '';
+      let body = '<div>PRD generated.</div>';
+      if (result && result.prd) {
+        if (window.renderMarkdown) {
+          body = window.renderMarkdown(result.prd);
+        } else {
+          body = `<pre class="prd-markdown" style="max-height:320px;">${escapeHtml(result.prd)}</pre>`;
+        }
+      }
+      prdReviewContent.innerHTML = body + fileInfo;
     }
 
     // Re-enable close and change buttons to close the modal
