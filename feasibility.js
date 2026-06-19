@@ -5,6 +5,8 @@
   let analyzeButton = null;
   let closeButton = null;
   let cancelButton = null;
+  let revisionModal = null;
+  let revisionModalContent = null;
   let isAnalyzing = false;
   let isRevising = false;
 
@@ -161,6 +163,7 @@
     if (content) {
       content.innerHTML = '<p class="empty-result">Revising PRD from low feasibility findings...</p>';
     }
+    showRevisionStatus("Updating PRD...");
 
     try {
       const result = await requestPrdRevision(prd.content, lowAssessments);
@@ -184,11 +187,13 @@
       }
       updateReviseButtonVisibility(getSavedAnalysis(product));
       bindRevisionButton(content);
+      hideRevisionStatus();
     } catch (error) {
       if (content) {
         content.innerHTML = `<p class="feasibility-error">Revision failed: ${escapeHtml(error.message || error)}</p>`;
       }
       app().logActivity("PRD revision from feasibility findings failed");
+      showRevisionStatus(`Revision failed: ${error.message || error}`);
     } finally {
       isRevising = false;
       setRevisionUiState(false);
@@ -359,6 +364,39 @@
         button.disabled = disabled;
       });
     }
+  }
+
+  function showRevisionStatus(message) {
+    createRevisionStatusModal();
+    revisionModalContent.textContent = message;
+    revisionModal.classList.remove("is-hidden");
+  }
+
+  function hideRevisionStatus() {
+    if (revisionModal) {
+      revisionModal.classList.add("is-hidden");
+    }
+  }
+
+  function createRevisionStatusModal() {
+    if (revisionModal) return;
+
+    document.body.insertAdjacentHTML("beforeend", `
+      <div id="prdRevisionStatusModal" class="modal-backdrop is-hidden" role="alertdialog" aria-modal="true" aria-labelledby="prdRevisionStatusTitle">
+        <section class="modal-panel confirm-panel">
+          <div class="modal-header">
+            <div>
+              <span>PRD Revision</span>
+              <h3 id="prdRevisionStatusTitle">Updating PRD</h3>
+            </div>
+          </div>
+          <div id="prdRevisionStatusContent" class="confirm-message">Updating PRD...</div>
+        </section>
+      </div>
+    `);
+
+    revisionModal = document.getElementById("prdRevisionStatusModal");
+    revisionModalContent = document.getElementById("prdRevisionStatusContent");
   }
 
   function closeModal() {
