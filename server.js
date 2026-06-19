@@ -112,7 +112,7 @@ async function callOpenAIForSpecReview(apiKey, specDocument) {
     },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
-      prompt_cache_key: "makeflow-spec-inspection-v1",
+      prompt_cache_key: "makeflow-spec-inspection-v2",
       prompt_cache_retention: PROMPT_CACHE_RETENTION,
       input: [
         {
@@ -120,7 +120,7 @@ async function callOpenAIForSpecReview(apiKey, specDocument) {
           content: [
             {
               type: "input_text",
-              text: "You are a senior product and engineering reviewer. Review the supplied product spec JSON for readiness to generate a PRD. If it is complete, internally consistent, testable, and has enough detail, return exactly: approved. If not, return a concise list of the blocking gaps and concrete fixes. Do not return approved unless there are no blocking gaps."
+              text: "You are a senior product and engineering reviewer. Review the supplied product spec JSON for readiness to generate a PRD. ONLY examine the fields that already exist in the provided JSON. Do not suggest adding new sections, new checklist items, new stages, or expanding the structure in any way. If the existing fields are complete, internally consistent, testable, and have enough detail, return exactly: approved. If not approved, return a detailed, human-readable review with concrete suggestions. For every issue, name the exact field or checklist item to change, explain what is missing or unclear, and give replacement-ready guidance the user can paste back into that field. Group the review by field names such as product.name, product.formFactor, product.bomTarget, checklist item names, notes, or stage.targetDate. Do not return approved unless there are no blocking gaps."
             }
           ]
         },
