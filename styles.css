@@ -553,10 +553,6 @@ svg {
   gap: 18px;
 }
 
-.bottom-grid {
-  display: block;
-}
-
 .work-card {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -981,6 +977,121 @@ svg {
   line-height: 1.55;
 }
 
+.feasibility-stage {
+  padding: 8px 12px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.feasibility-stage > p,
+.feasibility-intro {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.feasibility-body {
+  padding: 20px;
+}
+
+.feasibility-prd-preview {
+  max-height: 280px;
+  margin-bottom: 18px;
+}
+
+.feasibility-results {
+  margin-top: 18px;
+}
+
+.feasibility-results h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.feasibility-results > p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.feasibility-score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.feasibility-score-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--background);
+}
+
+.feasibility-score-card > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.feasibility-score-card strong {
+  font-size: 14px;
+}
+
+.feasibility-score-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.score-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.score-pill.high {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.score-pill.medium {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.score-pill.low {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.feasibility-recommendations {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.feasibility-error {
+  margin: 0;
+  color: #b42318;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .action-row {
   display: flex;
   align-items: center;
@@ -1024,40 +1135,6 @@ svg {
   cursor: not-allowed;
 }
 
-.activity-list {
-  list-style: none;
-  margin: 0;
-  padding: 16px 20px 20px;
-  max-height: 380px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.activity-list li {
-  display: grid;
-  grid-template-columns: 24px 1fr;
-  gap: 12px;
-  padding: 10px 0;
-}
-
-.activity-list svg {
-  width: 21px;
-  height: 21px;
-  color: var(--green);
-}
-
-.activity-list strong {
-  display: block;
-  font-size: 14px;
-}
-
-.activity-list span {
-  display: block;
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1082,6 +1159,12 @@ svg {
 
 .prd-review-panel {
   width: min(900px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.feasibility-panel {
+  width: min(980px, 100%);
   max-height: calc(100vh - 48px);
   overflow: auto;
 }
@@ -1634,6 +1717,10 @@ img.prd-comment-highlight,
   .action-buttons {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .feasibility-score-grid {
+    grid-template-columns: 1fr;
   }
 
   .secondary-button {

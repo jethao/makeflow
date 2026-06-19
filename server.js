@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FEASIBILITY_SCORE_AREAS, parseFeasibilityAnalysisText } from "./feasibility-core.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT || 4173);
@@ -154,6 +155,59 @@ async function handleUpdatePrd(request, response) {
   });
 }
 
+async function handleAnalyzeFeasibility(request, response) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
+    return;
+  }
+
+  const payload = request.method === "GET"
+    ? {
+        prd: typeof new URL(request.url || "/", `http://${request.headers.host}`).searchParams.get("prd") === "string"
+          ? new URL(request.url || "/", `http://${request.headers.host}`).searchParams.get("prd")
+          : ""
+      }
+    : await readJsonBody(request);
+  if (!payload || typeof payload.prd !== "string" || !payload.prd.trim()) {
+    sendJson(response, 400, { error: "prd (string) is required." });
+    return;
+  }
+
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const inputPath = join(OUTPUT_DIR, `${timestamp}-feasibility-input.json`);
+  const outputPath = join(OUTPUT_DIR, `${timestamp}-feasibility-analysis.json`);
+  const inputDocument = {
+    generatedAt: new Date().toISOString(),
+    source: "Makeflow",
+    prd: payload.prd
+  };
+
+  await writeFile(inputPath, `${JSON.stringify(inputDocument, null, 2)}\n`, "utf8");
+
+  let analysis;
+  try {
+    analysis = await callOpenAIForFeasibility(apiKey, inputDocument);
+  } catch (error) {
+    sendJson(response, 502, {
+      error: error.message || "OpenAI request failed.",
+      inputFile: relativeLocalPath(inputPath)
+    });
+    return;
+  }
+
+  await writeFile(outputPath, `${JSON.stringify(analysis, null, 2)}\n`, "utf8");
+
+  sendJson(response, 200, {
+    message: "Feasibility analyzed",
+    inputFile: relativeLocalPath(inputPath),
+    outputFile: relativeLocalPath(outputPath),
+    analysis
+  });
+}
+
 async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
   const commentsText = (inputDocument.comments || []).map((c, i) => {
     return `${i+1}. Quote: "${c.quote || ''}"\n   Comment: ${c.comment || ''}`;
@@ -205,6 +259,60 @@ async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
   }
 
   return text.trimEnd() + "\n";
+}
+
+async function callOpenAIForFeasibility(apiKey, inputDocument) {
+  const areas = FEASIBILITY_SCORE_AREAS.join(", ");
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+      prompt_cache_key: "makeflow-feasibility-analysis-v1",
+      prompt_cache_retention: PROMPT_CACHE_RETENTION,
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: `You are a principal system architect for real-world connected hardware/software products. Analyze the supplied PRD for product feasibility across these areas only: ${areas}. Consider mechanical design, electrical architecture, embedded/software systems, manufacturing/process readiness, compliance/certification, supply chain, integration risks, reliability, testability, cost, schedule, and dependencies needed to make the real product. Return ONLY valid JSON with this exact shape: {"summary":"...","scores":[{"area":"Mechanical","score":"high|medium|low","rationale":"..."},{"area":"Electrical","score":"high|medium|low","rationale":"..."},{"area":"Software","score":"high|medium|low","rationale":"..."},{"area":"Manufacture","score":"high|medium|low","rationale":"..."},{"area":"Compliance","score":"high|medium|low","rationale":"..."},{"area":"Supply Chain","score":"high|medium|low","rationale":"..."}],"recommendations":["..."]}. Use high for feasible with clear path, medium for feasible with material risks, and low for major unknowns or blockers.`
+            }
+          ]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Analyze this PRD for feasibility:\n\n${inputDocument.prd}`
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = data?.error?.message || `OpenAI request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  const text = extractResponseText(data);
+  if (!text.trim()) {
+    throw new Error("OpenAI returned an empty feasibility analysis.");
+  }
+
+  try {
+    return parseFeasibilityAnalysisText(text);
+  } catch {
+    throw new Error("OpenAI returned invalid feasibility analysis JSON.");
+  }
 }
 
 async function callOpenAIForSpecReview(apiKey, specDocument) {
@@ -409,7 +517,7 @@ async function handleRequest(request, response) {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
 
     // Handle API routes first
-    if (url.pathname === "/api/inspect-spec" || url.pathname === "/api/generate-prd" || url.pathname === "/api/update-prd") {
+    if (url.pathname === "/api/inspect-spec" || url.pathname === "/api/generate-prd" || url.pathname === "/api/update-prd" || url.pathname === "/api/analyze-feasibility") {
       if (request.method === "OPTIONS") {
         response.writeHead(204, {
           "Access-Control-Allow-Origin": "*",
@@ -420,7 +528,7 @@ async function handleRequest(request, response) {
         response.end();
         return;
       }
-      if (request.method === "POST") {
+      if (request.method === "POST" || (url.pathname === "/api/analyze-feasibility" && request.method === "GET")) {
         if (url.pathname === "/api/inspect-spec") {
           await handleInspectSpec(request, response);
           return;
@@ -433,9 +541,18 @@ async function handleRequest(request, response) {
           await handleUpdatePrd(request, response);
           return;
         }
+        if (url.pathname === "/api/analyze-feasibility") {
+          await handleAnalyzeFeasibility(request, response);
+          return;
+        }
       }
       // If API path but wrong method
-      sendJson(response, 405, { error: "Method not allowed" });
+      response.writeHead(405, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin": "*",
+        "Allow": url.pathname === "/api/analyze-feasibility" ? "GET, POST, OPTIONS" : "POST, OPTIONS"
+      });
+      response.end(JSON.stringify({ error: "Method not allowed" }));
       return;
     }
 

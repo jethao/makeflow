@@ -148,7 +148,6 @@ const specReviewResults = document.querySelector("#specReviewResults");
 const completionHint = document.querySelector("#completionHint");
 const inspectSpecButton = document.querySelector("#inspectSpecButton");
 const completeButton = document.querySelector("#completeButton");
-const activityList = document.querySelector("#activityList");
 const contextModal = document.querySelector("#contextModal");
 const modalStage = document.querySelector("#modalStage");
 const modalTitle = document.querySelector("#modalTitle");
@@ -206,6 +205,7 @@ function loadState() {
       targetDates: stages.map((_, index) => typeof saved.targetDates?.[index] === "string" ? saved.targetDates[index] : defaultDates[index]),
       specReviews: stages.map((_, index) => normalizeSpecReview(saved.specReviews?.[index])),
       prdOutputs: stages.map((_, index) => normalizePrdOutput(saved.prdOutputs?.[index])),
+      feasibilityAnalyses: stages.map((_, index) => normalizeFeasibilityAnalysis(saved.feasibilityAnalyses?.[index])),
 
       activity: normalizeActivity(saved.activity),
       selectedIndex: Math.min(saved.selectedIndex || 0, stages.length - 1)
@@ -236,6 +236,7 @@ function createProduct(overrides = {}) {
     specReviews: Array(stages.length).fill(null),
     specWorkbenchOpen: Array(stages.length).fill(false),
     prdOutputs: Array(stages.length).fill(null),
+    feasibilityAnalyses: Array(stages.length).fill(null),
 
     activity: [createActivity("Workflow started")],
     selectedIndex: 0,
@@ -261,6 +262,7 @@ function normalizeProduct(product) {
     specReviews: stages.map((_, index) => normalizeSpecReview(product.specReviews?.[index])),
     specWorkbenchOpen: stages.map((_, index) => Boolean(product.specWorkbenchOpen?.[index])),
     prdOutputs: stages.map((_, index) => normalizePrdOutput(product.prdOutputs?.[index])),
+    feasibilityAnalyses: stages.map((_, index) => normalizeFeasibilityAnalysis(product.feasibilityAnalyses?.[index])),
 
     activity: normalizeActivity(product.activity),
     selectedIndex: Math.min(product.selectedIndex || 0, stages.length - 1)
@@ -438,6 +440,20 @@ function renderDetails() {
       checklist.innerHTML = '<li class="check-item"><div class="prd-drafted-content"><em>No PRD generated yet. Generate from the Spec stage.</em></div></li>';
       checklistCount.textContent = '';
     }
+  } else if (selectedIndex === 2 && window.FeasibilityAnalysis) {
+    const oldUpdate = document.getElementById('updatePrdSection');
+    if (oldUpdate) oldUpdate.remove();
+    const oldProceed = document.getElementById('proceedSection');
+    if (oldProceed) oldProceed.remove();
+    window.FeasibilityAnalysis.renderStage(product, {
+      productRows,
+      checklistNextButton,
+      heading,
+      actionRow,
+      specWorkbench,
+      checklist,
+      checklistCount
+    });
   } else {
     const oldUpdate = document.getElementById('updatePrdSection');
     if (oldUpdate) oldUpdate.remove();
@@ -546,20 +562,6 @@ function renderDetails() {
   }
 }
 
-function renderActivity() {
-  const product = activeProduct();
-  const items = [...(product?.activity || [])].reverse();
-  activityList.innerHTML = items.map((item) => `
-    <li>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-      <span>
-        <strong>${escapeHtml(item.message)}</strong>
-        <span>${formatActivityTime(item.timestamp)}</span>
-      </span>
-    </li>
-  `).join("");
-}
-
 function completeCurrentStep() {
   if (isGeneratingPrd) return;
   openPrdReviewModal(selectedIndex);
@@ -599,7 +601,6 @@ function render() {
 
   renderSteps();
   renderDetails();
-  renderActivity();
 }
 
 function renderDashboard() {
@@ -662,7 +663,7 @@ stageDateInput.addEventListener("change", () => {
   product.targetDates[selectedIndex] = stageDateInput.value;
   logActivity(`${stages[selectedIndex].name} target date updated`);
   persist();
-  renderActivity();
+  render();
 });
 
 productTypeSelect.addEventListener("change", () => {
@@ -1385,7 +1386,13 @@ function initializeSpecController() {
     setSelectedIndex: (value) => { selectedIndex = value; },
     getIsGeneratingPrd: () => isGeneratingPrd,
     setIsGeneratingPrd: (value) => { isGeneratingPrd = value; },
-    setPrdGenerationError: (value) => { prdGenerationError = value; }
+    setPrdGenerationError: (value) => { prdGenerationError = value; },
+    activeProduct,
+    persist,
+    render,
+    logActivity,
+    renderMarkdown,
+    escapeHtml
   };
 
   specController = window.createSpecController({
@@ -1534,6 +1541,27 @@ function normalizePrdOutput(output) {
           resolved: !!c.resolved
         }))
       : []
+  };
+}
+
+function normalizeFeasibilityAnalysis(analysis) {
+  if (!analysis || typeof analysis !== "object") return null;
+
+  return {
+    summary: typeof analysis.summary === "string" ? analysis.summary : "",
+    scores: Array.isArray(analysis.scores)
+      ? analysis.scores.map((item) => ({
+          area: typeof item.area === "string" ? item.area : "",
+          score: ["high", "medium", "low"].includes(item.score) ? item.score : "low",
+          rationale: typeof item.rationale === "string" ? item.rationale : ""
+        }))
+      : [],
+    recommendations: Array.isArray(analysis.recommendations)
+      ? analysis.recommendations.filter((item) => typeof item === "string")
+      : [],
+    analyzedAt: typeof analysis.analyzedAt === "string" ? analysis.analyzedAt : "",
+    inputFile: typeof analysis.inputFile === "string" ? analysis.inputFile : "",
+    outputFile: typeof analysis.outputFile === "string" ? analysis.outputFile : ""
   };
 }
 
