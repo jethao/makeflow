@@ -87,10 +87,10 @@
     cancelButton.addEventListener("click", closeModal);
     analyzeButton.addEventListener("click", analyzeFeasibility);
     modal.addEventListener("click", (event) => {
-      if (event.target === modal && !isAnalyzing) closeModal();
+      if (event.target === modal && !isAnalyzing && !isRevising) closeModal();
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && modal && !modal.classList.contains("is-hidden") && !isAnalyzing) closeModal();
+      if (event.key === "Escape" && modal && !modal.classList.contains("is-hidden") && !isAnalyzing && !isRevising) closeModal();
     });
   }
 
@@ -131,6 +131,7 @@
         outputFile: result.outputFile || ""
       };
       app().logActivity("PRD feasibility analysis completed");
+      updateDesignUnlockState(product, product.feasibilityAnalyses[2]);
       app().persist();
       content.innerHTML = renderAnalysis(product.feasibilityAnalyses[2]);
       updateReviseButtonVisibility(product.feasibilityAnalyses[2]);
@@ -366,6 +367,15 @@
     }
   }
 
+  function updateDesignUnlockState(product, analysis) {
+    if (!product || !Array.isArray(product.completed)) return;
+    const shouldUnlockDesign = Boolean(analysis) && !hasLowFeasibilityScores(analysis);
+    if (shouldUnlockDesign && !product.completed[2]) {
+      product.completed[2] = true;
+      app().logActivity("Design unlocked after feasibility analysis passed");
+    }
+  }
+
   function showRevisionStatus(message) {
     createRevisionStatusModal();
     revisionModalContent.textContent = message;
@@ -400,7 +410,7 @@
   }
 
   function closeModal() {
-    if (!modal || isAnalyzing) return;
+    if (!modal || isAnalyzing || isRevising) return;
     modal.classList.add("is-hidden");
   }
 
