@@ -103,6 +103,110 @@ async function handleGeneratePrd(request, response) {
   });
 }
 
+async function handleUpdatePrd(request, response) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
+    return;
+  }
+
+  const payload = await readJsonBody(request);
+  if (!payload || typeof payload.currentPrd !== "string" || !payload.currentPrd.trim() || !Array.isArray(payload.comments)) {
+    sendJson(response, 400, { error: "currentPrd (string) and comments (array) are required." });
+    return;
+  }
+
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const inputFilename = `${timestamp}-prd-update-input.json`;
+  const outputFilename = `${timestamp}-prd-updated.md`;
+  const inputPath = join(OUTPUT_DIR, inputFilename);
+  const outputPath = join(OUTPUT_DIR, outputFilename);
+
+  const inputDocument = {
+    generatedAt: new Date().toISOString(),
+    source: "Makeflow",
+    currentPrd: payload.currentPrd,
+    comments: payload.comments
+  };
+
+  await writeFile(inputPath, `${JSON.stringify(inputDocument, null, 2)}\n`, "utf8");
+
+  let updatedPrd;
+  try {
+    updatedPrd = await callOpenAIForPrdUpdate(apiKey, inputDocument);
+  } catch (error) {
+    sendJson(response, 502, {
+      error: error.message || "OpenAI request failed.",
+      inputFile: relativeLocalPath(inputPath)
+    });
+    return;
+  }
+
+  await writeFile(outputPath, updatedPrd, "utf8");
+
+  sendJson(response, 200, {
+    message: "PRD updated",
+    inputFile: relativeLocalPath(inputPath),
+    outputFile: relativeLocalPath(outputPath),
+    prd: updatedPrd
+  });
+}
+
+async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
+  const commentsText = (inputDocument.comments || []).map((c, i) => {
+    return `${i+1}. Quote: "${c.quote || ''}"\n   Comment: ${c.comment || ''}`;
+  }).join('\n\n') || '(no comments)';
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+      prompt_cache_key: "makeflow-prd-update-v1",
+      prompt_cache_retention: PROMPT_CACHE_RETENTION,
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: "You are a senior product manager. Update the existing Product Requirements Document based on the stakeholder comments provided. Incorporate the feedback into the relevant sections. Keep any existing version information and increment the version appropriately if a version is present (e.g. v1.0 -> v1.1). Output ONLY the complete updated Markdown PRD. Do not add any preamble, explanations, or code fences."
+            }
+          ]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Current PRD:\n\n${inputDocument.currentPrd}\n\nComments to address:\n${commentsText}\n\nPlease produce the updated PRD.`
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = data?.error?.message || `OpenAI request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  const text = extractResponseText(data);
+  if (!text.trim()) {
+    throw new Error("OpenAI returned an empty updated PRD.");
+  }
+
+  return text.trimEnd() + "\n";
+}
+
 async function callOpenAIForSpecReview(apiKey, specDocument) {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -304,8 +408,9 @@ async function handleRequest(request, response) {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
 
-    if (request.method === "OPTIONS") {
-      if (url.pathname === "/api/inspect-spec" || url.pathname === "/api/generate-prd") {
+    // Handle API routes first
+    if (url.pathname === "/api/inspect-spec" || url.pathname === "/api/generate-prd" || url.pathname === "/api/update-prd") {
+      if (request.method === "OPTIONS") {
         response.writeHead(204, {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -315,14 +420,22 @@ async function handleRequest(request, response) {
         response.end();
         return;
       }
-    }
-    if (request.method === "POST" && url.pathname === "/api/inspect-spec") {
-      await handleInspectSpec(request, response);
-      return;
-    }
-
-    if (request.method === "POST" && url.pathname === "/api/generate-prd") {
-      await handleGeneratePrd(request, response);
+      if (request.method === "POST") {
+        if (url.pathname === "/api/inspect-spec") {
+          await handleInspectSpec(request, response);
+          return;
+        }
+        if (url.pathname === "/api/generate-prd") {
+          await handleGeneratePrd(request, response);
+          return;
+        }
+        if (url.pathname === "/api/update-prd") {
+          await handleUpdatePrd(request, response);
+          return;
+        }
+      }
+      // If API path but wrong method
+      sendJson(response, 405, { error: "Method not allowed" });
       return;
     }
 

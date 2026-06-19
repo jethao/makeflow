@@ -166,6 +166,7 @@ let activeContext = null;
 let pendingDeleteProductId = null;
 let isGeneratingPrd = false;
 let isInspectingSpec = false;
+let isUpdatingPrd = false;
 let prdGenerationError = "";
 let specInspectionError = "";
 let aggregateSpecParseError = "";
@@ -389,11 +390,38 @@ function renderDetails() {
       if (prdBox) {
         applyPrdComments(prdBox, prd.comments || []);
       }
+
+      // Add "Update PRD" button under PRD display but above activity (only if unresolved comments)
+      const oldUpdate = document.getElementById('updatePrdSection');
+      if (oldUpdate) oldUpdate.remove();
+      const unresolved = (prd.comments || []).filter(c => !c.resolved);
+      if (unresolved.length > 0) {
+        const updateSection = document.createElement('div');
+        updateSection.id = 'updatePrdSection';
+        updateSection.style.cssText = 'margin-top: 12px; padding: 0 4px;';
+        const btnDisabled = isUpdatingPrd ? ' disabled' : '';
+        updateSection.innerHTML = `
+          <button id="updatePrdBtn" class="secondary-button"${btnDisabled}>
+            Update PRD (${unresolved.length} to address)
+          </button>
+        `;
+        const ul = document.getElementById('checklist');
+        if (ul && ul.parentNode) {
+          ul.parentNode.insertBefore(updateSection, ul.nextSibling);
+        }
+        const updateBtn = document.getElementById('updatePrdBtn');
+        if (updateBtn) {
+          updateBtn.disabled = !!isUpdatingPrd;
+          updateBtn.addEventListener('click', () => openUpdatePrdPopup(prd));
+        }
+      }
     } else {
       checklist.innerHTML = '<li class="check-item"><div class="prd-drafted-content"><em>No PRD generated yet. Generate from the Spec stage.</em></div></li>';
       checklistCount.textContent = '';
     }
   } else {
+    const oldUpdate = document.getElementById('updatePrdSection');
+    if (oldUpdate) oldUpdate.remove();
     checklist.innerHTML = stage.checklist.map((item, index) => {
       if (isFeatureItem(item)) {
         return renderFeatureChecklistItem(stage, selectedIndex, index, status);
@@ -1034,7 +1062,7 @@ function applyPrdComments(container, comments) {
   });
 
   comments.forEach((c) => {
-    if (!c || !c.quote) return;
+    if (!c || !c.quote || c.resolved) return;
     if (c.type === "image") {
       highlightImageComment(container, c);
     } else {
@@ -1164,7 +1192,8 @@ function handlePrdRightClick(e) {
       quote,
       comment: commentText,
       createdAt: new Date().toISOString(),
-      type: ctype
+      type: ctype,
+      resolved: false
     });
     persist();
     render();
@@ -1301,6 +1330,112 @@ function showPrdComment(comment, anchorEl) {
   setTimeout(() => ta.focus(), 10);
 }
 
+function openUpdatePrdPopup(prd) {
+  if (!prd) return;
+  const unresolved = (prd.comments || []).filter(c => !c.resolved);
+  const old = document.getElementById('updatePrdModal');
+  if (old) old.remove();
+
+  const bd = document.createElement('div');
+  bd.id = 'updatePrdModal';
+  bd.className = 'modal-backdrop';
+
+  let listHtml = '';
+  if (unresolved.length === 0) {
+    listHtml = '<p style="color:#666;">No comments to address.</p>';
+  } else {
+    listHtml = '<ul style="max-height: 220px; overflow: auto; margin: 8px 0; padding-left: 20px; font-size: 13px; line-height: 1.4;">';
+    unresolved.forEach((c, i) => {
+      listHtml += `<li style="margin-bottom:6px;"><strong>${i+1}.</strong> <em>"${escapeHtml(c.quote)}"</em><br>${escapeHtml(c.comment)}</li>`;
+    });
+    listHtml += '</ul>';
+  }
+
+  bd.innerHTML = `
+    <section class="modal-panel" style="max-width:520px; width:90%;">
+      <div class="modal-header">
+        <div>
+          <span>PRD</span>
+          <h3>Update PRD with comments</h3>
+        </div>
+        <button class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <div style="padding: 12px 16px 8px;">
+        <div style="font-size:13px; margin-bottom:8px;">The following comments will be used to update the PRD:</div>
+        ${listHtml}
+        <div style="margin-top: 16px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+            <input type="checkbox" id="enableOpenAiToggle" />
+            <span>Enable OpenAI API call</span>
+          </label>
+          <div style="font-size:11px; color:#666; margin-left:22px;">Default off. Turn on to send the update request to OpenAI.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-button" id="cancelUpdateBtn">Cancel</button>
+        <button class="primary-button" id="okUpdateBtn" disabled>OK</button>
+      </div>
+    </section>
+  `;
+
+  document.body.appendChild(bd);
+
+  const close = () => bd.remove();
+  bd.querySelector('.icon-button').onclick = close;
+  bd.onclick = (e) => { if (e.target === bd) close(); };
+
+  const toggle = bd.querySelector('#enableOpenAiToggle');
+  const okBtn = bd.querySelector('#okUpdateBtn');
+  const cancelBtn = bd.querySelector('#cancelUpdateBtn');
+
+  toggle.checked = false;
+  toggle.onchange = () => {
+    okBtn.disabled = unresolved.length === 0 || !toggle.checked;
+  };
+  if (unresolved.length === 0) {
+    okBtn.disabled = true;
+  }
+
+  cancelBtn.onclick = () => {
+    close();
+  };
+
+  okBtn.onclick = async () => {
+    // gray out all
+    okBtn.disabled = true;
+    cancelBtn.disabled = true;
+    toggle.disabled = true;
+    bd.querySelector('.icon-button').disabled = true;
+    isUpdatingPrd = true;
+    render(); // update main button state
+
+    try {
+      const result = await updatePrdWithComments(prd.content, unresolved);
+      prd.content = result.prd;
+      if (result.outputFile) prd.outputFile = result.outputFile;
+      // mark as resolved
+      unresolved.forEach(c => c.resolved = true);
+      close();
+      persist();
+      render();
+    } catch (err) {
+      alert('Failed to update PRD: ' + (err.message || err));
+      isUpdatingPrd = false;
+      render();
+      // re-enable
+      okBtn.disabled = false;
+      cancelBtn.disabled = false;
+      toggle.disabled = false;
+      bd.querySelector('.icon-button').disabled = false;
+    } finally {
+      if (isUpdatingPrd) {
+        isUpdatingPrd = false;
+        render();
+      }
+    }
+  };
+}
+
 // Attach delegation for PRD right-click comments (once)
 if (checklist) {
   checklist.addEventListener("contextmenu", (e) => {
@@ -1420,7 +1555,8 @@ function normalizePrdOutput(output) {
           quote: String(c.quote || ""),
           comment: String(c.comment || ""),
           createdAt: String(c.createdAt || new Date().toISOString()),
-          type: c.type === "image" ? "image" : "text"
+          type: c.type === "image" ? "image" : "text",
+          resolved: !!c.resolved
         }))
       : []
   };
@@ -1645,6 +1781,33 @@ async function generatePrd(stageIndex) {
 
   if (!result.outputFile) {
     throw new Error("The PRD was generated, but the output file path was not returned.");
+  }
+
+  return result;
+}
+
+async function updatePrdWithComments(currentPrd, comments) {
+  let response;
+  try {
+    response = await fetch("/api/update-prd", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ currentPrd, comments })
+    });
+  } catch {
+    throw new Error("Could not reach the PRD server. Start the app with npm start and open the localhost URL printed by the server.");
+  }
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(result.error || "Unable to update PRD.");
+  }
+
+  if (!result.prd) {
+    throw new Error("The updated PRD was not returned.");
   }
 
   return result;
