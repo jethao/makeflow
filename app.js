@@ -7,7 +7,7 @@ const stages = [
     deliverable: "Approved concept spec",
     gate: "The opportunity, target user, problem statement, and measurable outcome are clear enough for PRD work.",
     evidence: "Product description, target customer, core use cases, and success metrics.",
-    checklist: ["Product description", "Target customer", "Primary use cases", "Hardware constraints", "Software constraints", "Success metric", "Key assumptions"]
+    checklist: ["Product description", "Target customer", "Primary use cases", "Hardware constraints", "Software constraints", "Regulatory/compliance", "Success metric", "Key assumptions"]
   },
   {
     name: "PRD review",
@@ -144,8 +144,7 @@ const specWorkbench = document.querySelector("#specWorkbench");
 const aggregateSpecInput = document.querySelector("#aggregateSpecInput");
 const aggregateSpecState = document.querySelector("#aggregateSpecState");
 const specReviewResults = document.querySelector("#specReviewResults");
-const notesInput = document.querySelector("#notesInput");
-const saveState = document.querySelector("#saveState");
+
 const completionHint = document.querySelector("#completionHint");
 const inspectSpecButton = document.querySelector("#inspectSpecButton");
 const completeButton = document.querySelector("#completeButton");
@@ -157,14 +156,6 @@ const contextInput = document.querySelector("#contextInput");
 const modalCloseButton = document.querySelector("#modalCloseButton");
 const modalDoneButton = document.querySelector("#modalDoneButton");
 const modalSaveState = document.querySelector("#modalSaveState");
-const prdReviewModal = document.querySelector("#prdReviewModal");
-const prdReviewStage = document.querySelector("#prdReviewStage");
-const prdReviewContent = document.querySelector("#prdReviewContent");
-const prdReviewCloseButton = document.querySelector("#prdReviewCloseButton");
-const prdReviewCancelButton = document.querySelector("#prdReviewCancelButton");
-const prdReviewConfirmButton = document.querySelector("#prdReviewConfirmButton");
-const allowOpenAiToggle = document.querySelector("#allowOpenAiToggle");
-const openAiToggleStatus = document.querySelector("#openAiToggleStatus");
 const deleteProductModal = document.querySelector("#deleteProductModal");
 const deleteProductMessage = document.querySelector("#deleteProductMessage");
 const deleteProductCloseButton = document.querySelector("#deleteProductCloseButton");
@@ -172,7 +163,6 @@ const deleteProductCancelButton = document.querySelector("#deleteProductCancelBu
 const deleteProductConfirmButton = document.querySelector("#deleteProductConfirmButton");
 
 let activeContext = null;
-let pendingPrdStageIndex = null;
 let pendingDeleteProductId = null;
 let isGeneratingPrd = false;
 let isInspectingSpec = false;
@@ -214,7 +204,7 @@ function loadState() {
       targetDates: stages.map((_, index) => typeof saved.targetDates?.[index] === "string" ? saved.targetDates[index] : defaultDates[index]),
       specReviews: stages.map((_, index) => normalizeSpecReview(saved.specReviews?.[index])),
       prdOutputs: stages.map((_, index) => normalizePrdOutput(saved.prdOutputs?.[index])),
-      notes: stages.map((_, index) => saved.notes?.[index] || ""),
+
       activity: normalizeActivity(saved.activity),
       selectedIndex: Math.min(saved.selectedIndex || 0, stages.length - 1)
     });
@@ -244,7 +234,7 @@ function createProduct(overrides = {}) {
     specReviews: Array(stages.length).fill(null),
     specWorkbenchOpen: Array(stages.length).fill(false),
     prdOutputs: Array(stages.length).fill(null),
-    notes: Array(stages.length).fill(""),
+
     activity: [createActivity("Workflow started")],
     selectedIndex: 0,
     ...overrides
@@ -269,7 +259,7 @@ function normalizeProduct(product) {
     specReviews: stages.map((_, index) => normalizeSpecReview(product.specReviews?.[index])),
     specWorkbenchOpen: stages.map((_, index) => Boolean(product.specWorkbenchOpen?.[index])),
     prdOutputs: stages.map((_, index) => normalizePrdOutput(product.prdOutputs?.[index])),
-    notes: stages.map((_, index) => product.notes?.[index] || ""),
+
     activity: normalizeActivity(product.activity),
     selectedIndex: Math.min(product.selectedIndex || 0, stages.length - 1)
   });
@@ -384,8 +374,7 @@ function renderDetails() {
   }).join("");
 
   checklistCount.textContent = `${documentedCount} / ${stage.checklist.length} documented`;
-  notesInput.value = product.notes[selectedIndex];
-  notesInput.disabled = status === "locked";
+
 
   const allDocumented = documentedCount === stage.checklist.length;
   const hasProductName = Boolean(product.productName && product.productName.trim());
@@ -393,12 +382,11 @@ function renderDetails() {
   const hasFormFactor = Boolean(product.formFactor && product.formFactor.trim());
   const hasBomTarget = product.bomTarget > 0;
   const workbenchOpen = Boolean(product.specWorkbenchOpen?.[selectedIndex]);
-  const canInspectSpec = status !== "locked" && status !== "completed" && allDocumented && hasProductName && hasProductType && hasFormFactor && hasBomTarget;
   const specApproved = isCurrentSpecApproved(product, selectedIndex);
   renderSpecWorkbench(product, selectedIndex, workbenchOpen);
-  inspectSpecButton.disabled = isInspectingSpec || isGeneratingPrd || !canInspectSpec || Boolean(aggregateSpecParseError);
+  inspectSpecButton.disabled = isInspectingSpec || isGeneratingPrd || Boolean(aggregateSpecParseError);
   inspectSpecButton.innerHTML = getInspectSpecButtonMarkup();
-  completeButton.disabled = isGeneratingPrd || isInspectingSpec || status === "locked" || status === "completed" || !allDocumented || !hasProductName || !hasProductType || !hasFormFactor || !hasBomTarget || !specApproved;
+  completeButton.disabled = isGeneratingPrd || isInspectingSpec;
   completeButton.innerHTML = getCompleteButtonMarkup(status);
 
   if (status === "locked") {
@@ -407,7 +395,7 @@ function renderDetails() {
     const output = product.prdOutputs[selectedIndex];
     completionHint.textContent = output?.outputFile
       ? `PRD saved locally at ${output.outputFile}.`
-      : "This gate is complete. You can review notes or move to the next unlocked stage.";
+      : "This gate is complete. You can move to the next unlocked stage.";
   } else if (isGeneratingPrd) {
     completionHint.textContent = "Generating PRD from the collected inputs...";
   } else if (isInspectingSpec) {
@@ -471,7 +459,7 @@ function renderActivity() {
 }
 
 function completeCurrentStep() {
-  if (completeButton.disabled || isGeneratingPrd) return;
+  if (isGeneratingPrd) return;
   openPrdReviewModal(selectedIndex);
 }
 
@@ -543,9 +531,7 @@ function applySpecPayloadToProduct(payload, product, stageIndex) {
     product.bomTarget = normalizePrice(payload.product.bomTarget);
   }
 
-  if (typeof payload.notes === "string") {
-    product.notes[stageIndex] = payload.notes;
-  }
+
 
   if (!Array.isArray(payload.checklist)) return;
 
@@ -567,7 +553,7 @@ function applySpecPayloadToProduct(payload, product, stageIndex) {
 
 async function inspectCurrentSpec() {
   const product = activeProduct();
-  if (!product || inspectSpecButton.disabled || isInspectingSpec) return;
+  if (!product || isInspectingSpec) return;
   if (!syncAggregateSpecToChecklist()) return;
 
   const stageIndex = selectedIndex;
@@ -601,47 +587,6 @@ async function inspectCurrentSpec() {
     logActivity(`${stages[stageIndex].name} spec inspection failed`);
   } finally {
     isInspectingSpec = false;
-    persist();
-    render();
-  }
-}
-
-async function generateConfirmedPrd() {
-  const product = activeProduct();
-  if (pendingPrdStageIndex === null || isGeneratingPrd) return;
-  if (!product) return;
-  if (!allowOpenAiToggle.checked) {
-    updatePrdReviewActionState();
-    return;
-  }
-
-  const stageIndex = pendingPrdStageIndex;
-  closePrdReviewModal();
-  isGeneratingPrd = true;
-  prdGenerationError = "";
-  logActivity(`${stages[stageIndex].name} PRD generation started`);
-  persist();
-  render();
-
-  try {
-    const result = await generatePrd(stageIndex);
-    product.prdOutputs[stageIndex] = {
-      inputFile: result.inputFile,
-      outputFile: result.outputFile,
-      generatedAt: new Date().toISOString()
-    };
-    product.completed[stageIndex] = true;
-    logActivity(`${stages[stageIndex].name} PRD generated at ${result.outputFile}`);
-
-    if (stageIndex < stages.length - 1) {
-      selectedIndex = stageIndex + 1;
-      logActivity(`${stages[selectedIndex].name} unlocked`);
-    }
-  } catch (error) {
-    prdGenerationError = error.message;
-    logActivity(`${stages[stageIndex].name} PRD generation failed`);
-  } finally {
-    isGeneratingPrd = false;
     persist();
     render();
   }
@@ -725,18 +670,6 @@ function openProduct(productId) {
   persist();
   render();
 }
-
-notesInput.addEventListener("input", () => {
-  const product = activeProduct();
-  if (!product) return;
-  product.notes[selectedIndex] = notesInput.value;
-  saveState.textContent = "Saving...";
-  persist();
-  window.clearTimeout(notesInput.saveTimer);
-  notesInput.saveTimer = window.setTimeout(() => {
-    saveState.textContent = "Saved locally";
-  }, 300);
-});
 
 stageDateInput.addEventListener("change", () => {
   const product = activeProduct();
@@ -854,15 +787,6 @@ modalDoneButton.addEventListener("click", closeContextModal);
 contextModal.addEventListener("click", (event) => {
   if (event.target === contextModal) closeContextModal();
 });
-prdReviewCloseButton.addEventListener("click", closePrdReviewModal);
-prdReviewCancelButton.addEventListener("click", closePrdReviewModal);
-prdReviewConfirmButton.addEventListener("click", () => {
-  generateConfirmedPrd();
-});
-allowOpenAiToggle.addEventListener("change", updatePrdReviewActionState);
-prdReviewModal.addEventListener("click", (event) => {
-  if (event.target === prdReviewModal) closePrdReviewModal();
-});
 deleteProductCloseButton.addEventListener("click", closeDeleteProductModal);
 deleteProductCancelButton.addEventListener("click", closeDeleteProductModal);
 deleteProductConfirmButton.addEventListener("click", deletePendingProduct);
@@ -873,8 +797,6 @@ deleteProductModal.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !contextModal.classList.contains("is-hidden")) {
     closeContextModal();
-  } else if (event.key === "Escape" && !prdReviewModal.classList.contains("is-hidden")) {
-    closePrdReviewModal();
   } else if (event.key === "Escape" && !deleteProductModal.classList.contains("is-hidden")) {
     closeDeleteProductModal();
   }
@@ -907,7 +829,7 @@ function hasLegacyProductData(saved) {
   if (!saved || typeof saved !== "object") return false;
   if (saved.productName || saved.formFactor || saved.productType || normalizePrice(saved.bomTarget) > 0) return true;
   if (Array.isArray(saved.completed) && saved.completed.some(Boolean)) return true;
-  if (Array.isArray(saved.notes) && saved.notes.some((note) => typeof note === "string" && note.trim())) return true;
+
   if (Array.isArray(saved.checklistContexts) && saved.checklistContexts.flat().some((item) => typeof item === "string" && item.trim())) return true;
   if (Array.isArray(saved.checklistFeatures) && saved.checklistFeatures.flat(2).some((item) => typeof item === "string" && item.trim())) return true;
   return false;
@@ -1158,32 +1080,6 @@ function deleteFeature(checkIndex, featureIndex) {
   render();
 }
 
-function openPrdReviewModal(stageIndex) {
-  const payload = buildPrdPayload(stageIndex);
-  pendingPrdStageIndex = stageIndex;
-  prdReviewStage.textContent = `${payload.stage.index}. ${payload.stage.name}`;
-  prdReviewContent.textContent = JSON.stringify(payload, null, 2);
-  allowOpenAiToggle.checked = false;
-  updatePrdReviewActionState();
-  prdReviewModal.classList.remove("is-hidden");
-  allowOpenAiToggle.focus();
-}
-
-function closePrdReviewModal() {
-  pendingPrdStageIndex = null;
-  allowOpenAiToggle.checked = false;
-  updatePrdReviewActionState();
-  prdReviewModal.classList.add("is-hidden");
-}
-
-function updatePrdReviewActionState() {
-  const allowed = allowOpenAiToggle.checked;
-  prdReviewConfirmButton.disabled = !allowed;
-  openAiToggleStatus.textContent = allowed
-    ? "On. Confirming will send this input to OpenAI."
-    : "Off by default. Turn on to generate the PRD.";
-}
-
 function updateBomTarget(value) {
   const product = activeProduct();
   if (!product) return;
@@ -1292,7 +1188,7 @@ function buildPrdPayload(stageIndex) {
         description: product.checklistContexts[stageIndex][checkIndex]
       };
     }),
-    notes: product.notes[stageIndex],
+
     priorStages: stages.slice(0, stageIndex).map((priorStage, index) => ({
       name: priorStage.name,
       completed: product.completed[index],
@@ -1304,10 +1200,6 @@ function buildPrdPayload(stageIndex) {
 function getCompleteButtonMarkup(status) {
   if (isGeneratingPrd) {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.64 5.64l2.12 2.12M16.24 16.24l2.12 2.12M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12"/></svg> Generating PRD';
-  }
-
-  if (status === "completed") {
-    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> PRD generated';
   }
 
   return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg> Generate PRD';
