@@ -1226,11 +1226,213 @@ svg {
   border-radius: 8px;
   background: #0f172a;
   color: #e5edf8;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
-  line-height: 1.55;
-  white-space: pre-wrap;
+  font-size: 13.5px;
+  line-height: 1.5;
   overflow-wrap: anywhere;
+}
+/* When the review modal contains rendered markdown instead of raw pre */
+.prd-review-content h1,
+.prd-review-content h2,
+.prd-review-content h3 {
+  color: #fff;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+.prd-review-content p {
+  margin: 4px 0 8px;
+  color: #e5edf8;
+}
+.prd-review-content ul,
+.prd-review-content ol {
+  padding-left: 18px;
+  margin: 4px 0 8px;
+}
+.prd-review-content li {
+  margin: 2px 0;
+}
+.prd-review-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.prd-review-content th,
+.prd-review-content td {
+  border: 1px solid #334155;
+  padding: 4px 6px;
+  text-align: left;
+  color: #e5edf8;
+}
+.prd-review-content th {
+  background: #1e2937;
+  font-weight: 600;
+}
+.prd-review-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  background: #1e2937;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.prd-review-content pre {
+  background: #020617;
+  color: #e5edf8;
+  padding: 8px;
+  border-radius: 4px;
+  overflow: auto;
+}
+
+/* PRD context shown in place of product fields + standard checklist for PRD review stage */
+.check-item.prd-drafted {
+  padding: 0;
+  margin: 0;
+  border: none;
+  list-style: none;
+}
+.prd-drafted-content {
+  padding: 0;
+}
+.prd-markdown {
+  max-height: 58vh;
+  margin: 0;
+  padding: 8px 12px 12px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* Rendered markdown typography inside the PRD panel / content areas */
+.prd-markdown h1 {
+  font-size: 18px;
+  margin: 16px 0 8px;
+  font-weight: 700;
+}
+.prd-markdown h2 {
+  font-size: 16px;
+  margin: 14px 0 6px;
+  font-weight: 700;
+  color: var(--text);
+}
+.prd-markdown h3 {
+  font-size: 14.5px;
+  margin: 12px 0 4px;
+  font-weight: 600;
+}
+.prd-markdown h4, .prd-markdown h5, .prd-markdown h6 {
+  font-size: 14px;
+  margin: 10px 0 4px;
+  font-weight: 600;
+}
+.prd-markdown p {
+  margin: 6px 0 10px;
+}
+.prd-markdown ul,
+.prd-markdown ol {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+.prd-markdown li {
+  margin: 3px 0;
+}
+.prd-markdown li > ul,
+.prd-markdown li > ol {
+  margin: 3px 0;
+}
+.prd-markdown strong {
+  font-weight: 600;
+}
+.prd-markdown em {
+  font-style: italic;
+}
+.prd-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12.5px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.prd-markdown pre {
+  margin: 10px 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e5edf8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+}
+.prd-markdown pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+.prd-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13px;
+  display: block;
+  overflow: auto;
+}
+.prd-markdown th,
+.prd-markdown td {
+  border: 1px solid var(--line-strong);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.prd-markdown th {
+  background: var(--surface-soft);
+  font-weight: 600;
+}
+.prd-markdown tr:nth-child(even) td {
+  background: rgba(0,0,0,0.015);
+}
+.prd-markdown hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 12px 0;
+}
+.prd-markdown a {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+/* PRD inline comments / highlights (from right-click "Add comment") */
+.prd-comment-highlight {
+  background: #fef08c;
+  border-bottom: 2px solid #854d0e;
+  border-radius: 2px;
+  padding: 0 1px;
+  margin: -1px 0;
+  cursor: pointer;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.prd-comment-highlight:hover {
+  background: #fde047;
+}
+img.prd-comment-highlight,
+.prd-markdown img.prd-comment-highlight {
+  outline: 2px solid #854d0e;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.prd-comment-highlight::after {
+  content: "💬";
+  font-size: 9px;
+  margin-left: 2px;
+  opacity: 0.7;
 }
 
 .api-toggle-row {

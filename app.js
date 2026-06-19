@@ -352,56 +352,71 @@ function renderDetails() {
   formFactorInput.disabled = status === "locked";
   checklistNextButton.disabled = status === "locked";
 
-  checklist.innerHTML = stage.checklist.map((item, index) => {
-    if (isFeatureItem(item)) {
-      return renderFeatureChecklistItem(stage, selectedIndex, index, status);
-    }
+  // Reset any PRD-stage hides when (re)rendering non-PRD or before applying
+  const productRows = document.querySelectorAll('.product-name-row, .product-type-row, .form-factor-row, .bom-target-row');
+  productRows.forEach(row => { if (row) row.style.display = ''; });
+  if (checklistNextButton) checklistNextButton.style.display = '';
+  const heading = document.querySelector('.checklist-card .section-heading');
+  if (heading) heading.style.display = '';
+  const actionRow = document.querySelector('.action-row');
+  if (actionRow) actionRow.style.display = '';
 
-    // Special case for PRD review stage first item: display the generated PRD content directly (replacing PRD drafted)
-    if (selectedIndex === 1 && index === 0) {
-      const prd = product.prdOutputs && product.prdOutputs[0];
-      if (prd && prd.content) {
-        return `
-          <li class="check-item prd-drafted">
-            <div class="prd-drafted-content">
-              <pre class="prd-markdown">${escapeHtml(prd.content)}</pre>
-            </div>
-          </li>
-        `;
-      } else {
-        return `
-          <li class="check-item">
-            <button type="button" ${status === "locked" ? "disabled" : ""}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
-              <span>
-                <strong>${escapeHtml(item)}</strong>
-                <span>Generate PRD from Spec stage first</span>
-              </span>
-            </button>
-          </li>
-        `;
+  if (selectedIndex === 1) {
+    // PRD review stage only: hide Product name, Product type, form factor, BOM target, checklist heading and all other standard views
+    // Show PRD context (the generated markdown content) instead
+    productRows.forEach(row => { if (row) row.style.display = 'none'; });
+    if (checklistNextButton) checklistNextButton.style.display = 'none';
+    if (heading) heading.style.display = 'none';
+    if (actionRow) actionRow.style.display = 'none';
+
+    // Force-hide spec workbench and collected spec editor for this stage
+    specWorkbench.classList.add('is-hidden');
+
+    const prd = product.prdOutputs && product.prdOutputs[0];
+    if (prd && prd.content) {
+      const rendered = window.renderMarkdown ? window.renderMarkdown(prd.content) : escapeHtml(prd.content);
+      checklist.innerHTML = `
+        <li class="check-item prd-drafted">
+          <div class="prd-drafted-content prd-markdown">
+            ${rendered}
+          </div>
+        </li>
+      `;
+      checklistCount.textContent = '';
+
+      // Apply any saved highlights / comments on the freshly rendered content
+      const prdBox = document.querySelector(".prd-drafted-content");
+      if (prdBox) {
+        applyPrdComments(prdBox, prd.comments || []);
       }
+    } else {
+      checklist.innerHTML = '<li class="check-item"><div class="prd-drafted-content"><em>No PRD generated yet. Generate from the Spec stage.</em></div></li>';
+      checklistCount.textContent = '';
     }
+  } else {
+    checklist.innerHTML = stage.checklist.map((item, index) => {
+      if (isFeatureItem(item)) {
+        return renderFeatureChecklistItem(stage, selectedIndex, index, status);
+      }
 
-    let value = contexts[index] || "";
-    let hasContext = Boolean(value.trim());
-    let helper = hasContext ? summarizeContext(value) : "Add description";
-    let displayItem = item;
+      const value = contexts[index] || "";
+      const hasContext = Boolean(value.trim());
+      const helper = hasContext ? summarizeContext(value) : "Add description";
+      return `
+        <li class="check-item">
+          <button class="check-button${hasContext ? " has-context" : ""}" type="button" data-check="${index}" ${status === "locked" ? "disabled" : ""}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
+            <span>
+              <strong>${escapeHtml(item)}</strong>
+              <span>${escapeHtml(helper)}</span>
+            </span>
+          </button>
+        </li>
+      `;
+    }).join("");
 
-    return `
-      <li class="check-item">
-        <button class="check-button${hasContext ? " has-context" : ""}" type="button" data-check="${index}" ${status === "locked" ? "disabled" : ""}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
-          <span>
-            <strong>${escapeHtml(displayItem)}</strong>
-            <span>${escapeHtml(helper)}</span>
-          </span>
-        </button>
-      </li>
-    `;
-  }).join("");
-
-  checklistCount.textContent = `${documentedCount} / ${stage.checklist.length} documented`;
+    checklistCount.textContent = `${documentedCount} / ${stage.checklist.length} documented`;
+  }
 
 
   const allDocumented = documentedCount === stage.checklist.length;
@@ -412,6 +427,9 @@ function renderDetails() {
   const workbenchOpen = Boolean(product.specWorkbenchOpen?.[selectedIndex]);
   const specApproved = isCurrentSpecApproved(product, selectedIndex);
   renderSpecWorkbench(product, selectedIndex, workbenchOpen);
+  if (selectedIndex === 1) {
+    specWorkbench.classList.add('is-hidden');
+  }
   inspectSpecButton.disabled = isInspectingSpec || isGeneratingPrd || Boolean(aggregateSpecParseError);
   inspectSpecButton.innerHTML = getInspectSpecButtonMarkup();
   completeButton.disabled = isGeneratingPrd || isInspectingSpec;
@@ -432,6 +450,11 @@ function renderDetails() {
     completionHint.textContent = prdGenerationError;
   } else if (specInspectionError) {
     completionHint.textContent = "Spec inspection failed. See inspection results.";
+  } else if (selectedIndex === 1) {
+    const prd = product.prdOutputs && product.prdOutputs[0];
+    completionHint.textContent = (prd && prd.content)
+      ? "PRD content shown in the step checklist area."
+      : "PRD will be shown here after generation from Spec.";
   } else if (!hasProductName) {
     completionHint.textContent = "Enter a product name before completing this stage.";
   } else if (!hasProductType) {
@@ -450,26 +473,28 @@ function renderDetails() {
     completionHint.textContent = "Spec approved. You can generate the PRD.";
   }
 
-  checklist.querySelectorAll(".check-button").forEach((button) => {
-    button.addEventListener("click", () => {
-      openContextModal(Number(button.dataset.check));
+  if (selectedIndex !== 1) {
+    checklist.querySelectorAll(".check-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        openContextModal(Number(button.dataset.check));
+      });
     });
-  });
-  checklist.querySelectorAll(".feature-add-button").forEach((button) => {
-    button.addEventListener("click", () => {
-      openFeatureModal(Number(button.dataset.check));
+    checklist.querySelectorAll(".feature-add-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        openFeatureModal(Number(button.dataset.check));
+      });
     });
-  });
-  checklist.querySelectorAll(".feature-edit-button").forEach((button) => {
-    button.addEventListener("click", () => {
-      openFeatureModal(Number(button.dataset.check), Number(button.dataset.feature));
+    checklist.querySelectorAll(".feature-edit-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        openFeatureModal(Number(button.dataset.check), Number(button.dataset.feature));
+      });
     });
-  });
-  checklist.querySelectorAll(".feature-delete-button").forEach((button) => {
-    button.addEventListener("click", () => {
-      deleteFeature(Number(button.dataset.check), Number(button.dataset.feature));
+    checklist.querySelectorAll(".feature-delete-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        deleteFeature(Number(button.dataset.check), Number(button.dataset.feature));
+      });
     });
-  });
+  }
 }
 
 function renderActivity() {
@@ -834,6 +859,458 @@ completeButton.addEventListener("click", () => {
   completeCurrentStep();
 });
 
+// Markdown renderer used by the PRD review panel (and modal success state)
+function renderMarkdown(md) {
+  if (!md || typeof md !== "string") return "";
+
+  // Start from escaped source (prevents XSS from any raw HTML in source)
+  let text = escapeHtml(md);
+
+  // Extract fenced code blocks and replace with placeholders
+  const codeBlocks = [];
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const safeCode = code.replace(/^\n+|\n+$/g, "");
+    const langAttr = lang ? ` class="language-${lang}"` : "";
+    codeBlocks.push(`<pre><code${langAttr}>${safeCode}</code></pre>`);
+    return `\n__MD_CODE_BLOCK_${codeBlocks.length - 1}__\n`;
+  });
+
+  const lines = text.split(/\r?\n/);
+  const htmlParts = [];
+  let i = 0;
+
+  function trim(str) { return str.replace(/^\s+|\s+$/g, ""); }
+
+  function processInline(str) {
+    if (!str) return "";
+    return str
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
+      .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>")
+      .replace(/(?<!_)_([^_\n]+)_(?!_)/g, "<em>$1</em>")
+      .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  }
+
+  function parseTable(tableLines) {
+    if (!tableLines.length) return "";
+    const headerRow = tableLines[0].trim();
+    const cells = headerRow.replace(/^\||\|$/g, "").split("|").map(c => trim(c));
+    let sepIndex = 1;
+    if (tableLines[1] && /^\s*\|?\s*[:\-]+\s*\|/.test(tableLines[1])) sepIndex = 2;
+    const bodyLines = tableLines.slice(sepIndex);
+
+    let html = '<table><thead><tr>';
+    cells.forEach(cell => { html += `<th>${processInline(cell)}</th>`; });
+    html += '</tr></thead><tbody>';
+
+    bodyLines.forEach(rowLine => {
+      if (!rowLine.trim() || !rowLine.includes("|")) return;
+      const rowCells = rowLine.replace(/^\||\|$/g, "").split("|").map(c => trim(c));
+      html += '<tr>';
+      rowCells.forEach(cell => { html += `<td>${processInline(cell)}</td>`; });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function parseList(startIndex, ordered) {
+    const items = [];
+    let j = startIndex;
+    const baseIndent = (lines[j].match(/^\s*/)[0] || "").length;
+
+    while (j < lines.length) {
+      let line = lines[j];
+      if (!line.trim()) { j++; continue; }
+      const indent = (line.match(/^\s*/)[0] || "").length;
+      const listMarker = ordered ? /^\s*\d+\.\s+/ : /^\s*[-*+]\s+/;
+      if (indent < baseIndent || !listMarker.test(line)) break;
+
+      let content = line.replace(listMarker, "");
+      j++;
+
+      const cont = [];
+      while (j < lines.length) {
+        const nextLine = lines[j];
+        const nIndent = (nextLine.match(/^\s*/)[0] || "").length;
+        if (nIndent > baseIndent && nextLine.trim() && !/^\s*([-*+]|\d+\.)\s/.test(nextLine)) {
+          cont.push(nextLine.trim());
+          j++;
+        } else if (!nextLine.trim()) {
+          cont.push("");
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      let itemContent = processInline(content);
+      if (cont.length) {
+        const extra = cont.filter(Boolean).join(" ");
+        if (extra) itemContent += " " + processInline(extra);
+      }
+      items.push(`<li>${itemContent}</li>`);
+    }
+
+    const tag = ordered ? "ol" : "ul";
+    return { html: `<${tag}>${items.join("")}</${tag}>`, next: j };
+  }
+
+  while (i < lines.length) {
+    let line = lines[i];
+    if (!line.trim()) { i++; continue; }
+
+    if (/^__MD_CODE_BLOCK_(\d+)__$/.test(line.trim())) {
+      const m = line.trim().match(/^__MD_CODE_BLOCK_(\d+)__$/);
+      const idx = parseInt(m[1], 10);
+      if (codeBlocks[idx]) htmlParts.push(codeBlocks[idx]);
+      i++; continue;
+    }
+
+    if (/^\s*([-*_]\s*){3,}\s*$/.test(line)) { htmlParts.push("<hr>"); i++; continue; }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = Math.min(6, headingMatch[1].length);
+      htmlParts.push(`<h${level}>${processInline(headingMatch[2].trim())}</h${level}>`);
+      i++; continue;
+    }
+
+    if (/^\s*\|/.test(line) && line.includes("|")) {
+      const tableLines = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i]) && lines[i].includes("|")) {
+        tableLines.push(lines[i]); i++;
+      }
+      const t = parseTable(tableLines);
+      if (t) htmlParts.push(t);
+      continue;
+    }
+
+    if (/^\s*[-*+]\s+/.test(line)) {
+      const res = parseList(i, false); htmlParts.push(res.html); i = res.next; continue;
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const res = parseList(i, true); htmlParts.push(res.html); i = res.next; continue;
+    }
+
+    const para = [];
+    while (i < lines.length) {
+      const l = lines[i];
+      if (!l.trim()) break;
+      if (/^(#{1,6}\s|[-*+]\s|\d+\.\s|\s*\|)/.test(l)) break;
+      if (/^\s*([-*_]\s*){3,}\s*$/.test(l)) break;
+      para.push(l); i++;
+    }
+    if (para.length) {
+      const joined = para.map(l => l.trim()).join(" ");
+      htmlParts.push(`<p>${processInline(joined)}</p>`);
+    }
+  }
+
+  return htmlParts.join("\n");
+}
+window.renderMarkdown = renderMarkdown;
+
+// ---------- PRD comment / annotation support ----------
+
+function applyPrdComments(container, comments) {
+  if (!container || !Array.isArray(comments) || comments.length === 0) return;
+
+  // Remove existing highlight wrappers (unwrap)
+  container.querySelectorAll(".prd-comment-highlight").forEach((el) => {
+    const parent = el.parentNode;
+    if (parent) {
+      parent.replaceChild(document.createTextNode(el.textContent || ""), el);
+      parent.normalize();
+    }
+  });
+
+  // Remove image highlight classes
+  container.querySelectorAll("img.prd-comment-highlight").forEach((img) => {
+    img.classList.remove("prd-comment-highlight");
+    delete img.dataset.commentId;
+    img.title = img.title && !img.title.includes("Comment:") ? img.title : "";
+  });
+
+  comments.forEach((c) => {
+    if (!c || !c.quote) return;
+    if (c.type === "image") {
+      highlightImageComment(container, c);
+    } else {
+      highlightTextComment(container, c);
+    }
+  });
+}
+
+function highlightTextComment(container, comment) {
+  const search = comment.quote.trim();
+  if (!search) return;
+
+  const lowerSearch = search.toLowerCase();
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  let node;
+  const matches = [];
+
+  while ((node = walker.nextNode())) {
+    const val = node.nodeValue || "";
+    const pos = val.toLowerCase().indexOf(lowerSearch);
+    if (pos !== -1) {
+      matches.push({ node, pos });
+      break; // first match only per comment (keeps things simple & non-overlapping)
+    }
+  }
+
+  matches.forEach(({ node, pos }) => {
+    const val = node.nodeValue || "";
+    const before = val.slice(0, pos);
+    const matchText = val.slice(pos, pos + search.length);
+    const after = val.slice(pos + search.length);
+
+    const span = document.createElement("span");
+    span.className = "prd-comment-highlight";
+    span.dataset.commentId = comment.id || "";
+    span.title = "Comment: " + comment.comment;
+    span.textContent = matchText;
+
+    span.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const prd = getCurrentPrd();
+      const cm = prd && prd.comments && prd.comments.find((x) => x.id === comment.id);
+      if (cm) showPrdComment(cm, span);
+    });
+
+    const frag = document.createDocumentFragment();
+    if (before) frag.appendChild(document.createTextNode(before));
+    frag.appendChild(span);
+    if (after) frag.appendChild(document.createTextNode(after));
+    node.parentNode.replaceChild(frag, node);
+  });
+}
+
+function highlightImageComment(container, comment) {
+  const imgs = container.querySelectorAll("img");
+  for (const img of imgs) {
+    const alt = (img.getAttribute("alt") || "").toLowerCase();
+    const src = (img.getAttribute("src") || "").toLowerCase();
+    const q = comment.quote.toLowerCase();
+    if (alt.includes(q) || src.includes(q) || q.includes(alt) || (alt === "" && src)) {
+      img.classList.add("prd-comment-highlight");
+      img.dataset.commentId = comment.id || "";
+      img.title = "Comment: " + comment.comment;
+      img.style.cursor = "pointer";
+      img.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const prd = getCurrentPrd();
+        const cm = prd && prd.comments && prd.comments.find((x) => x.id === comment.id);
+        if (cm) showPrdComment(cm, img);
+      }, { once: true });
+      break;
+    }
+  }
+}
+
+function getCurrentPrd() {
+  const product = activeProduct();
+  return product && product.prdOutputs ? product.prdOutputs[0] : null;
+}
+
+function handlePrdRightClick(e) {
+  if (selectedIndex !== 1) return;
+  const prdBox = e.target.closest(".prd-drafted-content");
+  if (!prdBox) return;
+
+  e.preventDefault();
+
+  // If clicking an existing highlight, offer to edit that comment instead
+  const existingHl = e.target.closest(".prd-comment-highlight, img.prd-comment-highlight");
+  if (existingHl && existingHl.dataset.commentId) {
+    const prd = getCurrentPrd();
+    const cm = prd && prd.comments && prd.comments.find((x) => x.id === existingHl.dataset.commentId);
+    if (cm) {
+      showPrdComment(cm, existingHl);
+      return;
+    }
+  }
+
+  const sel = window.getSelection && window.getSelection();
+  let quote = sel ? sel.toString().trim() : "";
+  let ctype = "text";
+
+  if (!quote) {
+    const t = e.target;
+    if (t.tagName === "IMG") {
+      quote = t.getAttribute("alt") || t.src || "[image]";
+      ctype = "image";
+    } else {
+      // grab nearest sensible block content as quote context
+      const block = t.closest("p,li,td,th,h1,h2,h3,h4,h5,h6,pre,blockquote");
+      if (block) {
+        quote = (block.textContent || "").trim().slice(0, 160);
+      }
+    }
+  }
+
+  if (!quote) return;
+
+  openAddPrdCommentUI(quote, ctype, (commentText) => {
+    const product = activeProduct();
+    if (!product) return;
+    const prd = product.prdOutputs && product.prdOutputs[0];
+    if (!prd) return;
+    if (!Array.isArray(prd.comments)) prd.comments = [];
+    prd.comments.push({
+      id: "c_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9),
+      quote,
+      comment: commentText,
+      createdAt: new Date().toISOString(),
+      type: ctype
+    });
+    persist();
+    render();
+  });
+}
+
+function openAddPrdCommentUI(quote, type, onSave) {
+  const old = document.getElementById("prdCommentDialog");
+  if (old) old.remove();
+
+  const bd = document.createElement("div");
+  bd.id = "prdCommentDialog";
+  bd.className = "modal-backdrop";
+
+  const safeQuote = escapeHtml(quote).slice(0, 280) + (quote.length > 280 ? "…" : "");
+
+  bd.innerHTML = `
+    <section class="modal-panel" style="max-width:440px">
+      <div class="modal-header">
+        <div>
+          <span>PRD</span>
+          <h3>Add comment</h3>
+        </div>
+        <button class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <div style="padding:0 16px 4px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Selection / context:</div>
+        <div style="max-height:78px;overflow:auto;background:var(--surface-soft);border:1px solid var(--line);padding:6px 8px;border-radius:4px;font-size:13px;white-space:pre-wrap;">${safeQuote}</div>
+
+        <label style="display:block;margin:10px 0 4px;font-size:13px;">Comment</label>
+        <textarea id="prdCommentInput" rows="4" style="width:100%;box-sizing:border-box;resize:vertical;" placeholder="Write your note, question or feedback..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-button" id="prdCommentCancel">Cancel</button>
+        <button class="primary-button" id="prdCommentSave">Add comment</button>
+      </div>
+    </section>`;
+
+  document.body.appendChild(bd);
+
+  const close = () => bd.remove();
+  bd.querySelector(".icon-button").onclick = close;
+  bd.onclick = (ev) => { if (ev.target === bd) close(); };
+
+  const ta = bd.querySelector("#prdCommentInput");
+  const save = bd.querySelector("#prdCommentSave");
+  const cancel = bd.querySelector("#prdCommentCancel");
+
+  cancel.onclick = close;
+  save.onclick = () => {
+    const val = (ta.value || "").trim();
+    if (!val) {
+      ta.focus();
+      return;
+    }
+    close();
+    onSave(val);
+  };
+
+  setTimeout(() => { ta.focus(); ta.select && ta.select(); }, 0);
+}
+
+function showPrdComment(comment, anchorEl) {
+  const old = document.getElementById("prdCommentDialog");
+  if (old) old.remove();
+
+  const bd = document.createElement("div");
+  bd.id = "prdCommentDialog";
+  bd.className = "modal-backdrop";
+
+  const q = escapeHtml(comment.quote || "").slice(0, 180) + ((comment.quote || "").length > 180 ? "…" : "");
+  const c = comment.comment || "";
+
+  bd.innerHTML = `
+    <section class="modal-panel" style="max-width:440px">
+      <div class="modal-header">
+        <div>
+          <span>PRD</span>
+          <h3>Comment</h3>
+        </div>
+        <button class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <div style="padding:0 16px 8px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">On:</div>
+        <div style="font-size:13px;opacity:0.85;margin-bottom:10px;white-space:pre-wrap;">${q}</div>
+
+        <textarea id="prdCommentInput" rows="4" style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+      <div class="modal-footer" style="justify-content:space-between">
+        <button class="secondary-button" id="prdCommentDelete" style="color:#b91c1c;border-color:#fecaca">Delete</button>
+        <div>
+          <button class="secondary-button" id="prdCommentCancel">Close</button>
+          <button class="primary-button" id="prdCommentSave">Save</button>
+        </div>
+      </div>
+    </section>`;
+
+  document.body.appendChild(bd);
+
+  const ta = bd.querySelector("#prdCommentInput");
+  ta.value = c;
+
+  const close = () => bd.remove();
+  bd.querySelector(".icon-button").onclick = close;
+  bd.onclick = (ev) => { if (ev.target === bd) close(); };
+
+  bd.querySelector("#prdCommentCancel").onclick = close;
+
+  bd.querySelector("#prdCommentSave").onclick = () => {
+    const val = ta.value.trim();
+    if (!val) return;
+    const product = activeProduct();
+    const prd = product && product.prdOutputs && product.prdOutputs[0];
+    if (prd && Array.isArray(prd.comments)) {
+      const target = prd.comments.find((x) => x.id === comment.id);
+      if (target) target.comment = val;
+    }
+    close();
+    persist();
+    render();
+  };
+
+  bd.querySelector("#prdCommentDelete").onclick = () => {
+    const product = activeProduct();
+    const prd = product && product.prdOutputs && product.prdOutputs[0];
+    if (prd && Array.isArray(prd.comments)) {
+      prd.comments = prd.comments.filter((x) => x.id !== comment.id);
+    }
+    close();
+    persist();
+    render();
+  };
+
+  setTimeout(() => ta.focus(), 10);
+}
+
+// Attach delegation for PRD right-click comments (once)
+if (checklist) {
+  checklist.addEventListener("contextmenu", (e) => {
+    const prdArea = e.target.closest(".prd-drafted-content");
+    if (prdArea && selectedIndex === 1) {
+      handlePrdRightClick(e);
+    }
+  });
+}
+
 render();
 
 function parseDisplayDate(value) {
@@ -936,7 +1413,16 @@ function normalizePrdOutput(output) {
     inputFile: typeof output.inputFile === "string" ? output.inputFile : "",
     outputFile: typeof output.outputFile === "string" ? output.outputFile : "",
     generatedAt: typeof output.generatedAt === "string" ? output.generatedAt : "",
-    content: typeof output.content === "string" ? output.content : ""
+    content: typeof output.content === "string" ? output.content : (typeof output.prd === "string" ? output.prd : ""),
+    comments: Array.isArray(output.comments)
+      ? output.comments.map((c) => ({
+          id: String(c.id || ("c_" + Date.now())),
+          quote: String(c.quote || ""),
+          comment: String(c.comment || ""),
+          createdAt: String(c.createdAt || new Date().toISOString()),
+          type: c.type === "image" ? "image" : "text"
+        }))
+      : []
   };
 }
 
