@@ -17,7 +17,7 @@ const stages = [
     deliverable: "Approved PRD",
     gate: "The PRD is complete, aligned with business goals, and accepted by product, design, and engineering.",
     evidence: "Reviewed PRD, open questions resolved, acceptance criteria, release scope, and sign-off notes.",
-    checklist: ["PRD drafted", "Stakeholder review", "Feedback incorporated", "Acceptance criteria approved", "Final sign-off"]
+    checklist: ["Stakeholder review", "Feedback incorporated", "Acceptance criteria approved", "Final sign-off"]
   },
   {
     name: "Feasibility Analysis",
@@ -357,15 +357,43 @@ function renderDetails() {
       return renderFeatureChecklistItem(stage, selectedIndex, index, status);
     }
 
-    const value = contexts[index] || "";
-    const hasContext = Boolean(value.trim());
-    const helper = hasContext ? summarizeContext(value) : "Add description";
+    // Special case for PRD review stage first item: display the generated PRD content directly (replacing PRD drafted)
+    if (selectedIndex === 1 && index === 0) {
+      const prd = product.prdOutputs && product.prdOutputs[0];
+      if (prd && prd.content) {
+        return `
+          <li class="check-item prd-drafted">
+            <div class="prd-drafted-content">
+              <pre class="prd-markdown">${escapeHtml(prd.content)}</pre>
+            </div>
+          </li>
+        `;
+      } else {
+        return `
+          <li class="check-item">
+            <button type="button" ${status === "locked" ? "disabled" : ""}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
+              <span>
+                <strong>${escapeHtml(item)}</strong>
+                <span>Generate PRD from Spec stage first</span>
+              </span>
+            </button>
+          </li>
+        `;
+      }
+    }
+
+    let value = contexts[index] || "";
+    let hasContext = Boolean(value.trim());
+    let helper = hasContext ? summarizeContext(value) : "Add description";
+    let displayItem = item;
+
     return `
       <li class="check-item">
         <button class="check-button${hasContext ? " has-context" : ""}" type="button" data-check="${index}" ${status === "locked" ? "disabled" : ""}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
           <span>
-            <strong>${escapeHtml(item)}</strong>
+            <strong>${escapeHtml(displayItem)}</strong>
             <span>${escapeHtml(helper)}</span>
           </span>
         </button>
@@ -907,7 +935,8 @@ function normalizePrdOutput(output) {
   return {
     inputFile: typeof output.inputFile === "string" ? output.inputFile : "",
     outputFile: typeof output.outputFile === "string" ? output.outputFile : "",
-    generatedAt: typeof output.generatedAt === "string" ? output.generatedAt : ""
+    generatedAt: typeof output.generatedAt === "string" ? output.generatedAt : "",
+    content: typeof output.content === "string" ? output.content : ""
   };
 }
 
@@ -944,6 +973,12 @@ function getDocumentedCount(stageIndex) {
 
   const stage = stages[stageIndex];
   return stage.checklist.reduce((count, item, index) => {
+    // For PRD review first step, count as documented if the PRD was generated from spec (location or content)
+    if (stageIndex === 1 && index === 0) {
+      const prd = product.prdOutputs && product.prdOutputs[0];
+      return count + (prd && (prd.content || prd.outputFile) ? 1 : 0);
+    }
+
     if (isFeatureItem(item)) {
       return count + (product.checklistFeatures[stageIndex][index].length > 0 ? 1 : 0);
     }
@@ -1002,6 +1037,9 @@ function openContextModal(checkIndex) {
   modalTitle.textContent = stage.checklist[checkIndex];
   contextInput.previousElementSibling.textContent = "Description";
   contextInput.value = product.checklistContexts[selectedIndex][checkIndex] || "";
+  contextInput.readOnly = false;
+  contextInput.style.fontFamily = "";
+  contextInput.style.whiteSpace = "";
   modalSaveState.textContent = "Saved on close";
   contextModal.classList.remove("is-hidden");
   contextInput.focus();
@@ -1044,6 +1082,10 @@ function closeContextModal() {
       logActivity(`${stages[stageIndex].checklist[checkIndex]} updated`);
     }
   }
+
+  contextInput.readOnly = false;
+  contextInput.style.fontFamily = "";
+  contextInput.style.whiteSpace = "";
 
   activeContext = null;
   contextModal.classList.add("is-hidden");

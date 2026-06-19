@@ -9,6 +9,7 @@
   let openAiToggleStatus = null;
 
   let pendingPrdStageIndex = null;
+  let reviewingGeneratedPrd = false;
 
   function createModalIfNeeded() {
     if (prdReviewModal) return;
@@ -144,50 +145,86 @@
   window.openPrdReviewModal = function(stageIndex, prdMarkdown) {
     createModalIfNeeded();
     pendingPrdStageIndex = stageIndex;
+    reviewingGeneratedPrd = !!prdMarkdown;
 
     prdReviewStage.textContent = "";
     const titleEl = document.getElementById("prdReviewTitle");
-    if (titleEl) titleEl.textContent = "Review Collected spec";
 
-    const payload = window.buildPrdPayload ? window.buildPrdPayload(stageIndex) : {};
-    const collectedSpec = formatPayloadAsMarkdown(payload);
+    if (reviewingGeneratedPrd) {
+      // PRD review mode: display the generated PRD markdown passed from spec
+      if (titleEl) titleEl.textContent = "Review PRD";
+      if (prdReviewContent) {
+        prdReviewContent.textContent = prdMarkdown;
+      }
 
-    if (prdReviewContent) {
-      prdReviewContent.textContent = collectedSpec;
-    }
+      // Hide toggle and description paragraph
+      const p = prdReviewModal ? prdReviewModal.querySelector('.prd-review-body > p') : null;
+      if (p) p.style.display = 'none';
+      if (allowOpenAiToggle && allowOpenAiToggle.parentElement) {
+        allowOpenAiToggle.parentElement.style.display = 'none';
+      }
 
-    // Reset buttons and handlers
-    if (prdReviewCloseButton) {
-      prdReviewCloseButton.disabled = false;
-      prdReviewCloseButton.onclick = () => window.closePrdReviewModal();
-    }
-    if (prdReviewCancelButton) {
-      prdReviewCancelButton.disabled = false;
-      prdReviewCancelButton.textContent = "Cancel";
-      prdReviewCancelButton.onclick = () => window.closePrdReviewModal();
-    }
-    if (prdReviewConfirmButton) {
-      prdReviewConfirmButton.disabled = true;
-      prdReviewConfirmButton.textContent = "Confirm and generate";
-      prdReviewConfirmButton.onclick = () => { 
-        if (window.generateConfirmedPrd) window.generateConfirmedPrd(); 
-      };
-    }
+      // Setup for review/accept only
+      if (prdReviewConfirmButton) {
+        prdReviewConfirmButton.disabled = false;
+        prdReviewConfirmButton.textContent = "Accept";
+        prdReviewConfirmButton.onclick = () => { 
+          if (window.generateConfirmedPrd) window.generateConfirmedPrd(); 
+        };
+      }
+      if (prdReviewCancelButton) {
+        prdReviewCancelButton.disabled = false;
+        prdReviewCancelButton.textContent = "Cancel";
+        prdReviewCancelButton.onclick = () => window.closePrdReviewModal();
+      }
+      if (prdReviewCloseButton) {
+        prdReviewCloseButton.disabled = false;
+        prdReviewCloseButton.onclick = () => window.closePrdReviewModal();
+      }
+    } else {
+      // Original: collected spec for pre-generation in spec stage
+      if (titleEl) titleEl.textContent = "Review Collected spec";
 
-    // Reset toggle for pre-generation review
-    if (allowOpenAiToggle) {
-      allowOpenAiToggle.checked = false;
+      const payload = window.buildPrdPayload ? window.buildPrdPayload(stageIndex) : {};
+      const collectedSpec = formatPayloadAsMarkdown(payload);
+
+      if (prdReviewContent) {
+        prdReviewContent.textContent = collectedSpec;
+      }
+
+      // Reset buttons and handlers
+      if (prdReviewCloseButton) {
+        prdReviewCloseButton.disabled = false;
+        prdReviewCloseButton.onclick = () => window.closePrdReviewModal();
+      }
+      if (prdReviewCancelButton) {
+        prdReviewCancelButton.disabled = false;
+        prdReviewCancelButton.textContent = "Cancel";
+        prdReviewCancelButton.onclick = () => window.closePrdReviewModal();
+      }
+      if (prdReviewConfirmButton) {
+        prdReviewConfirmButton.disabled = true;
+        prdReviewConfirmButton.textContent = "Confirm and generate";
+        prdReviewConfirmButton.onclick = () => { 
+          if (window.generateConfirmedPrd) window.generateConfirmedPrd(); 
+        };
+      }
+
+      // Reset toggle for pre-generation review
+      if (allowOpenAiToggle) {
+        allowOpenAiToggle.checked = false;
+      }
+      if (allowOpenAiToggle && allowOpenAiToggle.parentElement) {
+        allowOpenAiToggle.parentElement.style.display = "";
+      }
+      // show p again
+      const p = prdReviewModal ? prdReviewModal.querySelector('.prd-review-body > p') : null;
+      if (p) p.style.display = '';
+      updatePrdReviewActionState();
     }
-    if (allowOpenAiToggle && allowOpenAiToggle.parentElement) {
-      allowOpenAiToggle.parentElement.style.display = "";
-    }
-    // show p again
-    const p = prdReviewModal ? prdReviewModal.querySelector('.prd-review-body > p') : null;
-    if (p) p.style.display = '';
-    updatePrdReviewActionState();
 
     prdReviewModal.classList.remove('is-hidden');
-    if (allowOpenAiToggle) {
+    if (allowOpenAiToggle && !reviewingGeneratedPrd) {
       allowOpenAiToggle.focus();
     } else {
       prdReviewConfirmButton.focus();
@@ -197,6 +234,7 @@
   window.closePrdReviewModal = function() {
     if (!prdReviewModal) return;
     pendingPrdStageIndex = null;
+    reviewingGeneratedPrd = false;
     if (allowOpenAiToggle) {
       allowOpenAiToggle.checked = false;
     }
@@ -226,14 +264,28 @@
     const product = window.activeProduct ? window.activeProduct() : null;
     if (pendingPrdStageIndex === null || window.isGeneratingPrd) return;
     if (!product) return;
+
+    const stageIndex = pendingPrdStageIndex;
+
+    if (reviewingGeneratedPrd) {
+      // In PRD review stage: just accept the review of the passed PRD markdown
+      // Mark the first checklist item as documented
+      if (stageIndex === 1) {
+        if (!product.checklistContexts) product.checklistContexts = [];
+        if (!product.checklistContexts[1]) product.checklistContexts[1] = [];
+        product.checklistContexts[1][0] = "Reviewed the generated PRD markdown.";
+      }
+      window.closePrdReviewModal();
+      if (window.render) window.render();
+      return;
+    }
+
     if (!allowOpenAiToggle || !allowOpenAiToggle.checked) {
       updatePrdReviewActionState();
       return;
     }
 
-    const stageIndex = pendingPrdStageIndex;
-
-    // Keep the popup open and show waiting state
+    // Keep the popup open and show waiting state (for spec generation)
     window.isGeneratingPrd = true;
     window.prdGenerationError = "";
     if (window.logActivity) window.logActivity(`${window.stages ? window.stages[stageIndex].name : 'Stage'} PRD generation started`);
@@ -250,7 +302,8 @@
         product.prdOutputs[stageIndex] = {
           inputFile: result.inputFile,
           outputFile: result.outputFile,
-          generatedAt: new Date().toISOString()
+          generatedAt: new Date().toISOString(),
+          content: result.prd || ""
         };
         product.completed[stageIndex] = true;
         if (window.logActivity) window.logActivity(`${window.stages ? window.stages[stageIndex].name : 'Stage'} PRD generated at ${result.outputFile}`);
