@@ -767,24 +767,6 @@ bomTargetInput.addEventListener("input", () => {
   persist();
 });
 
-checklistNextButton.addEventListener("click", () => {
-  const product = activeProduct();
-  if (!product) return;
-
-  product.specWorkbenchOpen[selectedIndex] = true;
-  persist();
-  render();
-  aggregateSpecInput.focus();
-});
-
-aggregateSpecInput.addEventListener("input", () => {
-  syncAggregateSpecToChecklist();
-});
-
-aggregateSpecInput.addEventListener("blur", () => {
-  render();
-});
-
 productNameInput.addEventListener("change", () => {
   const product = activeProduct();
   if (!product) return;
@@ -821,6 +803,24 @@ formFactorInput.addEventListener("input", () => {
   if (!product) return;
   product.formFactor = formFactorInput.value.trim();
   persist();
+});
+
+checklistNextButton.addEventListener("click", () => {
+  const product = activeProduct();
+  if (!product) return;
+
+  product.specWorkbenchOpen[selectedIndex] = true;
+  persist();
+  render();
+  aggregateSpecInput.focus();
+});
+
+aggregateSpecInput.addEventListener("input", () => {
+  syncAggregateSpecToChecklist();
+});
+
+aggregateSpecInput.addEventListener("blur", () => {
+  render();
 });
 
 inspectSpecButton.addEventListener("click", inspectCurrentSpec);
