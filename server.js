@@ -112,8 +112,13 @@ async function handleUpdatePrd(request, response) {
   }
 
   const payload = await readJsonBody(request);
-  if (!payload || typeof payload.currentPrd !== "string" || !payload.currentPrd.trim() || !Array.isArray(payload.comments)) {
-    sendJson(response, 400, { error: "currentPrd (string) and comments (array) are required." });
+  const revisionItems = Array.isArray(payload?.lowAssessments) && payload.lowAssessments.length
+    ? payload.lowAssessments
+    : Array.isArray(payload?.comments)
+      ? payload.comments
+      : [];
+  if (!payload || typeof payload.currentPrd !== "string" || !payload.currentPrd.trim() || revisionItems.length === 0) {
+    sendJson(response, 400, { error: "currentPrd (string) and lowAssessments/comments (array) are required." });
     return;
   }
 
@@ -129,7 +134,7 @@ async function handleUpdatePrd(request, response) {
     generatedAt: new Date().toISOString(),
     source: "Makeflow",
     currentPrd: payload.currentPrd,
-    comments: payload.comments
+    lowAssessments: revisionItems
   };
 
   await writeFile(inputPath, `${JSON.stringify(inputDocument, null, 2)}\n`, "utf8");
@@ -145,12 +150,21 @@ async function handleUpdatePrd(request, response) {
     return;
   }
 
+  const revisionSummary = summarizePrdRevision(inputDocument.currentPrd, updatedPrd, revisionItems);
+  console.log("[OpenAI PRD revision response summary]");
+  console.log(JSON.stringify({
+    receivedAt: new Date().toISOString(),
+    outputFile: relativeLocalPath(outputPath),
+    revisionSummary
+  }, null, 2));
+
   await writeFile(outputPath, updatedPrd, "utf8");
 
   sendJson(response, 200, {
     message: "PRD updated",
     inputFile: relativeLocalPath(inputPath),
     outputFile: relativeLocalPath(outputPath),
+    revisionSummary,
     prd: updatedPrd
   });
 }
@@ -209,9 +223,45 @@ async function handleAnalyzeFeasibility(request, response) {
 }
 
 async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
-  const commentsText = (inputDocument.comments || []).map((c, i) => {
-    return `${i+1}. Quote: "${c.quote || ''}"\n   Comment: ${c.comment || ''}`;
-  }).join('\n\n') || '(no comments)';
+  const revisionItemsText = (inputDocument.lowAssessments || []).map((item, i) => {
+    const area = item?.area || `Finding ${i + 1}`;
+    const score = item?.score || "low";
+    const rationale = item?.rationale || item?.comment || item?.quote || "No rationale provided.";
+    return `${i + 1}. Area: ${area}\n   Score: ${score}\n   Rationale: ${rationale}`;
+  }).join("\n\n") || "(no low feasibility findings)";
+
+  const requestBody = {
+    model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+    prompt_cache_key: "makeflow-prd-update-v2",
+    prompt_cache_retention: PROMPT_CACHE_RETENTION,
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: "You are a senior product manager and system-minded PRD editor. Revise the existing Product Requirements Document using the low feasibility findings provided below. Treat every low finding as a required change target. Strengthen the PRD so it better addresses architecture, hardware, software, manufacturing, compliance, supply chain, risks, assumptions, dependencies, verification, and constraints that make the product more realistic. Preserve accurate existing content where it is still valid, but rewrite any weak or underspecified sections so the PRD is materially better and more actionable. Keep any existing version information and increment the version appropriately if a version is present (e.g. v1.0 -> v1.1). Output ONLY the complete updated Markdown PRD. Do not add any preamble, explanations, or code fences."
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `Current PRD:\n\n${inputDocument.currentPrd}\n\nLow feasibility findings to address:\n${revisionItemsText}\n\nRewrite the PRD so these findings are addressed directly and the document is stronger overall.`
+          }
+        ]
+      }
+    ]
+  };
+
+  console.log("[OpenAI PRD revision request]");
+  console.log(JSON.stringify({
+    sentAt: new Date().toISOString(),
+    endpoint: "https://api.openai.com/v1/responses",
+    body: requestBody
+  }, null, 2));
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -219,31 +269,7 @@ async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
-      prompt_cache_key: "makeflow-prd-update-v1",
-      prompt_cache_retention: PROMPT_CACHE_RETENTION,
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text: "You are a senior product manager. Update the existing Product Requirements Document based on the stakeholder comments provided. Incorporate the feedback into the relevant sections. Keep any existing version information and increment the version appropriately if a version is present (e.g. v1.0 -> v1.1). Output ONLY the complete updated Markdown PRD. Do not add any preamble, explanations, or code fences."
-            }
-          ]
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `Current PRD:\n\n${inputDocument.currentPrd}\n\nComments to address:\n${commentsText}\n\nPlease produce the updated PRD.`
-            }
-          ]
-        }
-      ]
-    })
+    body: JSON.stringify(requestBody)
   });
 
   const data = await response.json().catch(() => ({}));
@@ -259,6 +285,60 @@ async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
   }
 
   return text.trimEnd() + "\n";
+}
+
+function summarizePrdRevision(previousPrd, updatedPrd, revisionItems) {
+  const changedSections = getChangedMarkdownSections(previousPrd, updatedPrd);
+  const areas = (revisionItems || [])
+    .map((item) => item?.area || item?.quote || "")
+    .filter(Boolean);
+
+  const summary = [];
+  if (areas.length) {
+    summary.push(`Addressed low feasibility areas: ${areas.join(", ")}.`);
+  }
+  if (changedSections.length) {
+    summary.push(`Updated PRD sections: ${changedSections.slice(0, 8).join(", ")}${changedSections.length > 8 ? ", and more" : ""}.`);
+  } else if (String(previousPrd || "") !== String(updatedPrd || "")) {
+    summary.push("Updated PRD content without markdown section heading changes.");
+  }
+  summary.push(`PRD size changed from ${String(previousPrd || "").length} to ${String(updatedPrd || "").length} characters.`);
+
+  return summary;
+}
+
+function getChangedMarkdownSections(previousPrd, updatedPrd) {
+  const previousSections = parseMarkdownSections(previousPrd);
+  const updatedSections = parseMarkdownSections(updatedPrd);
+  const headings = new Set([...previousSections.keys(), ...updatedSections.keys()]);
+
+  return [...headings].filter((heading) => {
+    return normalizeComparableText(previousSections.get(heading)) !== normalizeComparableText(updatedSections.get(heading));
+  });
+}
+
+function parseMarkdownSections(markdown) {
+  const sections = new Map();
+  let currentHeading = "Document body";
+  let currentLines = [];
+
+  String(markdown || "").split(/\r?\n/).forEach((line) => {
+    const headingMatch = line.match(/^(#{1,6})\s+(.+?)\s*$/);
+    if (headingMatch) {
+      sections.set(currentHeading, currentLines.join("\n"));
+      currentHeading = headingMatch[2].trim();
+      currentLines = [];
+      return;
+    }
+    currentLines.push(line);
+  });
+
+  sections.set(currentHeading, currentLines.join("\n"));
+  return sections;
+}
+
+function normalizeComparableText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 async function callOpenAIForFeasibility(apiKey, inputDocument) {
@@ -279,7 +359,7 @@ async function callOpenAIForFeasibility(apiKey, inputDocument) {
           content: [
             {
               type: "input_text",
-              text: `You are a principal system architect for real-world connected hardware/software products. Analyze the supplied PRD for product feasibility across these areas only: ${areas}. Consider mechanical design, electrical architecture, embedded/software systems, manufacturing/process readiness, compliance/certification, supply chain, integration risks, reliability, testability, cost, schedule, and dependencies needed to make the real product. Return ONLY valid JSON with this exact shape: {"summary":"...","scores":[{"area":"Mechanical","score":"high|medium|low","rationale":"..."},{"area":"Electrical","score":"high|medium|low","rationale":"..."},{"area":"Software","score":"high|medium|low","rationale":"..."},{"area":"Manufacture","score":"high|medium|low","rationale":"..."},{"area":"Compliance","score":"high|medium|low","rationale":"..."},{"area":"Supply Chain","score":"high|medium|low","rationale":"..."}],"recommendations":["..."]}. Use high for feasible with clear path, medium for feasible with material risks, and low for major unknowns or blockers.`
+              text: `You are a principal system architect for real-world connected hardware/software products. Analyze the supplied PRD for product feasibility across these areas only: ${areas}. Consider mechanical design, electrical architecture, embedded/software systems, manufacturing/process readiness, compliance/certification, supply chain, integration risks, reliability, testability, cost, schedule, and dependencies needed to make the real product. Be loose and easy on Compliance: for ordinary consumer, industrial, IoT, appliance, software, or general hardware products, score Compliance high when there is a normal certification path and medium when details are incomplete. Only score Compliance low when the product is explicitly medical, healthcare/clinical, defense, weapons, aerospace defense, or otherwise subject to unusually strict regulated-use approval and the PRD lacks a credible regulatory path. Return ONLY valid JSON with this exact shape: {"summary":"...","scores":[{"area":"Mechanical","score":"high|medium|low","rationale":"..."},{"area":"Electrical","score":"high|medium|low","rationale":"..."},{"area":"Software","score":"high|medium|low","rationale":"..."},{"area":"Manufacture","score":"high|medium|low","rationale":"..."},{"area":"Compliance","score":"high|medium|low","rationale":"..."},{"area":"Supply Chain","score":"high|medium|low","rationale":"..."}],"recommendations":["..."]}. Use high for feasible with clear path, medium for feasible with material risks, and low for major unknowns or blockers.`
             }
           ]
         },
