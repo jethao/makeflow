@@ -182,6 +182,7 @@
       if (content) {
         content.innerHTML = `
           <p class="feasibility-intro">The PRD was updated from the low feasibility findings. Re-run analysis to confirm the revised version.</p>
+          ${renderRevisionSummary(result.revisionSummary)}
           <div class="feasibility-prd-preview prd-markdown">
             ${app().renderMarkdown ? app().renderMarkdown(result.prd) : escapeHtml(result.prd)}
           </div>
@@ -312,6 +313,20 @@
             <button class="secondary-button revise-prd-trigger" type="button">Revise PRD</button>
           </div>
         ` : ""}
+      </div>
+    `;
+  }
+
+  function renderRevisionSummary(summary) {
+    const items = Array.isArray(summary) ? summary.filter((item) => typeof item === "string" && item.trim()) : [];
+    if (items.length === 0) return "";
+
+    return `
+      <div class="feasibility-revision-summary">
+        <h4>What changed</h4>
+        <ul>
+          ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
       </div>
     `;
   }

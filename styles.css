@@ -1005,6 +1005,29 @@ svg {
   margin-top: 18px;
 }
 
+.feasibility-revision-summary {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.feasibility-revision-summary h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.feasibility-revision-summary ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .feasibility-results h4 {
   margin: 0 0 10px;
   font-size: 15px;

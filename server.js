@@ -150,12 +150,21 @@ async function handleUpdatePrd(request, response) {
     return;
   }
 
+  const revisionSummary = summarizePrdRevision(inputDocument.currentPrd, updatedPrd, revisionItems);
+  console.log("[OpenAI PRD revision response summary]");
+  console.log(JSON.stringify({
+    receivedAt: new Date().toISOString(),
+    outputFile: relativeLocalPath(outputPath),
+    revisionSummary
+  }, null, 2));
+
   await writeFile(outputPath, updatedPrd, "utf8");
 
   sendJson(response, 200, {
     message: "PRD updated",
     inputFile: relativeLocalPath(inputPath),
     outputFile: relativeLocalPath(outputPath),
+    revisionSummary,
     prd: updatedPrd
   });
 }
@@ -221,37 +230,46 @@ async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
     return `${i + 1}. Area: ${area}\n   Score: ${score}\n   Rationale: ${rationale}`;
   }).join("\n\n") || "(no low feasibility findings)";
 
+  const requestBody = {
+    model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+    prompt_cache_key: "makeflow-prd-update-v2",
+    prompt_cache_retention: PROMPT_CACHE_RETENTION,
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: "You are a senior product manager and system-minded PRD editor. Revise the existing Product Requirements Document using the low feasibility findings provided below. Treat every low finding as a required change target. Strengthen the PRD so it better addresses architecture, hardware, software, manufacturing, compliance, supply chain, risks, assumptions, dependencies, verification, and constraints that make the product more realistic. Preserve accurate existing content where it is still valid, but rewrite any weak or underspecified sections so the PRD is materially better and more actionable. Keep any existing version information and increment the version appropriately if a version is present (e.g. v1.0 -> v1.1). Output ONLY the complete updated Markdown PRD. Do not add any preamble, explanations, or code fences."
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `Current PRD:\n\n${inputDocument.currentPrd}\n\nLow feasibility findings to address:\n${revisionItemsText}\n\nRewrite the PRD so these findings are addressed directly and the document is stronger overall.`
+          }
+        ]
+      }
+    ]
+  };
+
+  console.log("[OpenAI PRD revision request]");
+  console.log(JSON.stringify({
+    sentAt: new Date().toISOString(),
+    endpoint: "https://api.openai.com/v1/responses",
+    body: requestBody
+  }, null, 2));
+
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
-      prompt_cache_key: "makeflow-prd-update-v2",
-      prompt_cache_retention: PROMPT_CACHE_RETENTION,
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text: "You are a senior product manager and system-minded PRD editor. Revise the existing Product Requirements Document using the low feasibility findings provided below. Treat every low finding as a required change target. Strengthen the PRD so it better addresses architecture, hardware, software, manufacturing, compliance, supply chain, risks, assumptions, dependencies, verification, and constraints that make the product more realistic. Preserve accurate existing content where it is still valid, but rewrite any weak or underspecified sections so the PRD is materially better and more actionable. Keep any existing version information and increment the version appropriately if a version is present (e.g. v1.0 -> v1.1). Output ONLY the complete updated Markdown PRD. Do not add any preamble, explanations, or code fences."
-            }
-          ]
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `Current PRD:\n\n${inputDocument.currentPrd}\n\nLow feasibility findings to address:\n${revisionItemsText}\n\nRewrite the PRD so these findings are addressed directly and the document is stronger overall.`
-            }
-          ]
-        }
-      ]
-    })
+    body: JSON.stringify(requestBody)
   });
 
   const data = await response.json().catch(() => ({}));
@@ -267,6 +285,60 @@ async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
   }
 
   return text.trimEnd() + "\n";
+}
+
+function summarizePrdRevision(previousPrd, updatedPrd, revisionItems) {
+  const changedSections = getChangedMarkdownSections(previousPrd, updatedPrd);
+  const areas = (revisionItems || [])
+    .map((item) => item?.area || item?.quote || "")
+    .filter(Boolean);
+
+  const summary = [];
+  if (areas.length) {
+    summary.push(`Addressed low feasibility areas: ${areas.join(", ")}.`);
+  }
+  if (changedSections.length) {
+    summary.push(`Updated PRD sections: ${changedSections.slice(0, 8).join(", ")}${changedSections.length > 8 ? ", and more" : ""}.`);
+  } else if (String(previousPrd || "") !== String(updatedPrd || "")) {
+    summary.push("Updated PRD content without markdown section heading changes.");
+  }
+  summary.push(`PRD size changed from ${String(previousPrd || "").length} to ${String(updatedPrd || "").length} characters.`);
+
+  return summary;
+}
+
+function getChangedMarkdownSections(previousPrd, updatedPrd) {
+  const previousSections = parseMarkdownSections(previousPrd);
+  const updatedSections = parseMarkdownSections(updatedPrd);
+  const headings = new Set([...previousSections.keys(), ...updatedSections.keys()]);
+
+  return [...headings].filter((heading) => {
+    return normalizeComparableText(previousSections.get(heading)) !== normalizeComparableText(updatedSections.get(heading));
+  });
+}
+
+function parseMarkdownSections(markdown) {
+  const sections = new Map();
+  let currentHeading = "Document body";
+  let currentLines = [];
+
+  String(markdown || "").split(/\r?\n/).forEach((line) => {
+    const headingMatch = line.match(/^(#{1,6})\s+(.+?)\s*$/);
+    if (headingMatch) {
+      sections.set(currentHeading, currentLines.join("\n"));
+      currentHeading = headingMatch[2].trim();
+      currentLines = [];
+      return;
+    }
+    currentLines.push(line);
+  });
+
+  sections.set(currentHeading, currentLines.join("\n"));
+  return sections;
+}
+
+function normalizeComparableText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 async function callOpenAIForFeasibility(apiKey, inputDocument) {
