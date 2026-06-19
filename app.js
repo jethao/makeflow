@@ -373,6 +373,12 @@ function renderDetails() {
     // Force-hide spec workbench and collected spec editor for this stage
     specWorkbench.classList.add('is-hidden');
 
+    // Clean previous action sections
+    const oldUpdate = document.getElementById('updatePrdSection');
+    if (oldUpdate) oldUpdate.remove();
+    const oldProceed = document.getElementById('proceedSection');
+    if (oldProceed) oldProceed.remove();
+
     const prd = product.prdOutputs && product.prdOutputs[0];
     if (prd && prd.content) {
       const rendered = window.renderMarkdown ? window.renderMarkdown(prd.content) : escapeHtml(prd.content);
@@ -391,10 +397,8 @@ function renderDetails() {
         applyPrdComments(prdBox, prd.comments || []);
       }
 
-      // Add "Update PRD" button under PRD display but above activity (only if unresolved comments)
-      const oldUpdate = document.getElementById('updatePrdSection');
-      if (oldUpdate) oldUpdate.remove();
       const unresolved = (prd.comments || []).filter(c => !c.resolved);
+      const ul = document.getElementById('checklist');
       if (unresolved.length > 0) {
         const updateSection = document.createElement('div');
         updateSection.id = 'updatePrdSection';
@@ -405,7 +409,6 @@ function renderDetails() {
             Update PRD (${unresolved.length} to address)
           </button>
         `;
-        const ul = document.getElementById('checklist');
         if (ul && ul.parentNode) {
           ul.parentNode.insertBefore(updateSection, ul.nextSibling);
         }
@@ -413,6 +416,21 @@ function renderDetails() {
         if (updateBtn) {
           updateBtn.disabled = !!isUpdatingPrd;
           updateBtn.addEventListener('click', () => openUpdatePrdPopup(prd));
+        }
+      } else {
+        // Show proceed button by default if no unaddressed comments
+        const proceedSection = document.createElement('div');
+        proceedSection.id = 'proceedSection';
+        proceedSection.style.cssText = 'margin-top: 12px; padding: 0 4px;';
+        proceedSection.innerHTML = `
+          <button id="proceedBtn" class="primary-button">Proceed to Feasibility Analysis</button>
+        `;
+        if (ul && ul.parentNode) {
+          ul.parentNode.insertBefore(proceedSection, ul.nextSibling);
+        }
+        const proceedBtn = document.getElementById('proceedBtn');
+        if (proceedBtn) {
+          proceedBtn.addEventListener('click', proceedToFeasibility);
         }
       }
     } else {
@@ -422,6 +440,8 @@ function renderDetails() {
   } else {
     const oldUpdate = document.getElementById('updatePrdSection');
     if (oldUpdate) oldUpdate.remove();
+    const oldProceed = document.getElementById('proceedSection');
+    if (oldProceed) oldProceed.remove();
     checklist.innerHTML = stage.checklist.map((item, index) => {
       if (isFeatureItem(item)) {
         return renderFeatureChecklistItem(stage, selectedIndex, index, status);
@@ -1434,6 +1454,34 @@ function openUpdatePrdPopup(prd) {
       }
     }
   };
+}
+
+function proceedToFeasibility() {
+  const product = activeProduct();
+  if (!product) return;
+  const prd = product.prdOutputs && product.prdOutputs[0];
+  if (!prd || !prd.content) return;
+
+  // Unblock Feasibility Analysis (complete PRD review stage)
+  product.completed[1] = true;
+
+  // Pass the latest PRD to Feasibility Analysis (store in prdOutputs[1])
+  if (!product.prdOutputs) product.prdOutputs = [];
+  const latestPrd = product.prdOutputs[0];
+  product.prdOutputs[1] = {
+    content: latestPrd.content,
+    outputFile: latestPrd.outputFile || '',
+    generatedAt: new Date().toISOString(),
+    source: 'PRD Review (updated with comments)'
+  };
+
+  logActivity('Proceeded to Feasibility Analysis with latest PRD');
+
+  // Advance to next stage
+  selectedIndex = 2;
+
+  persist();
+  render();
 }
 
 // Attach delegation for PRD right-click comments (once)
