@@ -29,6 +29,20 @@ export function normalizeFeasibilityAnalysis(input) {
   };
 }
 
+export function hasLowFeasibilityScores(analysis) {
+  return Array.isArray(analysis?.scores) && analysis.scores.some((score) => normalizeScore(score?.score) === "low");
+}
+
+export function buildFeasibilityRevisionComments({ analysis } = {}) {
+  const scores = Array.isArray(analysis?.scores) ? analysis.scores : [];
+  return scores
+    .filter((score) => normalizeScore(score?.score) === "low")
+    .map((score) => ({
+      quote: `${String(score?.area || "Feasibility")} feasibility: low`,
+      comment: `Revise the PRD to address: ${String(score?.rationale || "This area needs clearer product definition.").trim()}`
+    }));
+}
+
 export function parseFeasibilityAnalysisText(text) {
   const parsed = JSON.parse(stripJsonEnvelope(text));
   return normalizeFeasibilityAnalysis(parsed);

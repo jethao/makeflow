@@ -6,6 +6,7 @@
   let closeButton = null;
   let cancelButton = null;
   let isAnalyzing = false;
+  let isRevising = false;
 
   function renderStage(product, elements) {
     const prd = getHandoffPrd(product);
@@ -36,6 +37,7 @@
 
     const button = document.getElementById("openFeasibilityModalButton");
     if (button) button.addEventListener("click", openModal);
+    bindRevisionButton(elements.checklist);
   }
 
   function openModal() {
@@ -102,6 +104,7 @@
       </div>
       ${analysis ? renderAnalysis(analysis) : ""}
     `;
+    updateReviseButtonVisibility(analysis);
   }
 
   async function analyzeFeasibility() {
@@ -128,6 +131,8 @@
       app().logActivity("PRD feasibility analysis completed");
       app().persist();
       content.innerHTML = renderAnalysis(product.feasibilityAnalyses[2]);
+      updateReviseButtonVisibility(product.feasibilityAnalyses[2]);
+      bindRevisionButton(content);
     } catch (error) {
       content.innerHTML = `<p class="feasibility-error">Feasibility analysis failed: ${escapeHtml(error.message || error)}</p>`;
       app().logActivity("PRD feasibility analysis failed");
@@ -137,6 +142,56 @@
       closeButton.disabled = false;
       cancelButton.disabled = false;
       analyzeButton.textContent = "Analyze PRD Feasibility";
+      updateReviseButtonVisibility(getSavedAnalysis(product));
+      app().render();
+    }
+  }
+
+  async function revisePrdFromAnalysis() {
+    const product = app().activeProduct();
+    const prd = getHandoffPrd(product);
+    const analysis = getSavedAnalysis(product);
+    if (!prd?.content || !hasLowFeasibilityScores(analysis) || isRevising) return;
+
+    const comments = buildRevisionComments(analysis);
+    if (comments.length === 0) return;
+
+    isRevising = true;
+    setRevisionUiState(true);
+    if (content) {
+      content.innerHTML = '<p class="empty-result">Revising PRD from low feasibility findings...</p>';
+    }
+
+    try {
+      const result = await requestPrdRevision(prd.content, comments);
+      product.prdOutputs[1] = {
+        ...prd,
+        content: result.prd,
+        outputFile: result.outputFile || prd.outputFile || "",
+        generatedAt: new Date().toISOString(),
+        source: "Feasibility revision based on low scores"
+      };
+      app().logActivity("PRD revised from feasibility findings");
+      app().persist();
+      if (content) {
+        content.innerHTML = `
+          <p class="feasibility-intro">The PRD was updated from the low feasibility findings. Re-run analysis to confirm the revised version.</p>
+          <div class="feasibility-prd-preview prd-markdown">
+            ${app().renderMarkdown ? app().renderMarkdown(result.prd) : escapeHtml(result.prd)}
+          </div>
+          ${renderAnalysis(getSavedAnalysis(product))}
+        `;
+      }
+      updateReviseButtonVisibility(getSavedAnalysis(product));
+      bindRevisionButton(content);
+    } catch (error) {
+      if (content) {
+        content.innerHTML = `<p class="feasibility-error">Revision failed: ${escapeHtml(error.message || error)}</p>`;
+      }
+      app().logActivity("PRD revision from feasibility findings failed");
+    } finally {
+      isRevising = false;
+      setRevisionUiState(false);
       app().render();
     }
   }
@@ -165,6 +220,31 @@
     }
     if (!result.analysis) {
       throw new Error("The feasibility analysis was not returned.");
+    }
+    return result;
+  }
+
+  async function requestPrdRevision(currentPrd, comments) {
+    let response;
+    try {
+      response = await fetch("/api/update-prd", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ currentPrd, comments })
+      });
+    } catch {
+      throw new Error("Could not reach the PRD update server. Start the app with npm start and open the localhost URL printed by the server.");
+    }
+
+    const rawBody = await response.text().catch(() => "");
+    const result = parseResponseBody(rawBody);
+    if (!response.ok) {
+      throw new Error(formatServerError("Unable to revise PRD.", response.status, rawBody, result));
+    }
+    if (!result.prd) {
+      throw new Error("The updated PRD was not returned.");
     }
     return result;
   }
@@ -212,8 +292,55 @@
             ${analysis.recommendations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
           </ul>
         ` : ""}
+        ${hasLowFeasibilityScores(analysis) ? `
+          <div class="feasibility-action-row">
+            <button class="secondary-button revise-prd-trigger" type="button">Revise PRD</button>
+          </div>
+        ` : ""}
       </div>
     `;
+  }
+
+  function buildRevisionComments(analysis) {
+    return Array.isArray(analysis?.scores)
+      ? analysis.scores
+          .filter((score) => normalizeScore(score?.score) === "low")
+          .map((score) => ({
+            quote: `${String(score?.area || "Feasibility")} feasibility: low`,
+            comment: `Revise the PRD to address: ${String(score?.rationale || "This area needs clearer product definition.").trim()}`
+          }))
+      : [];
+  }
+
+  function hasLowFeasibilityScores(analysis) {
+    return Array.isArray(analysis?.scores) && analysis.scores.some((score) => normalizeScore(score?.score) === "low");
+  }
+
+  function bindRevisionButton(root) {
+    if (!root) return;
+    root.querySelectorAll(".revise-prd-trigger").forEach((button) => {
+      button.addEventListener("click", revisePrdFromAnalysis);
+    });
+  }
+
+  function updateReviseButtonVisibility(analysis) {
+    const shouldShow = hasLowFeasibilityScores(analysis);
+    if (modal) {
+      modal.querySelectorAll(".revise-prd-trigger").forEach((button) => {
+        button.style.display = shouldShow ? "" : "none";
+      });
+    }
+  }
+
+  function setRevisionUiState(disabled) {
+    if (analyzeButton) analyzeButton.disabled = disabled;
+    if (closeButton) closeButton.disabled = disabled;
+    if (cancelButton) cancelButton.disabled = disabled;
+    if (modal) {
+      modal.querySelectorAll(".revise-prd-trigger").forEach((button) => {
+        button.disabled = disabled;
+      });
+    }
   }
 
   function closeModal() {
