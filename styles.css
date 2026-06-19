@@ -1061,7 +1061,7 @@ svg {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 1000;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -1082,6 +1082,8 @@ svg {
 
 .prd-review-panel {
   width: min(900px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
 }
 
 .modal-header {

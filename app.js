@@ -170,6 +170,7 @@ let isUpdatingPrd = false;
 let prdGenerationError = "";
 let specInspectionError = "";
 let aggregateSpecParseError = "";
+let specController = null;
 
 function loadState() {
   const empty = {
@@ -565,132 +566,15 @@ function completeCurrentStep() {
 }
 
 function renderSpecWorkbench(product, stageIndex, isOpen) {
-  specWorkbench.classList.toggle("is-hidden", !isOpen);
-
-  if (!isOpen) {
-    aggregateSpecParseError = "";
-    return;
-  }
-
-  if (document.activeElement !== aggregateSpecInput) {
-    aggregateSpecInput.value = JSON.stringify(buildPrdPayload(stageIndex), null, 2);
-    aggregateSpecParseError = "";
-    aggregateSpecState.textContent = "Synced";
-    aggregateSpecState.className = "";
-  }
-
-  specReviewResults.innerHTML = renderSpecReviewResults(product, stageIndex);
-}
-
-function renderSpecReviewResults(product, stageIndex) {
-  if (isInspectingSpec) {
-    return '<p class="empty-result">Inspection running...</p>';
-  }
-
-  const review = product.specReviews?.[stageIndex];
-  if (!review?.review) {
-    return '<p class="empty-result">No inspection results yet.</p>';
-  }
-
-  const status = review.status === "approved" ? "Approved" : review.status === "error" ? "Error" : "Needs changes";
-  return `
-    <div class="result-status ${escapeHtml(review.status)}">${status}</div>
-    <pre>${escapeHtml(review.review)}</pre>
-  `;
+  return specController.renderSpecWorkbench(product, stageIndex, isOpen);
 }
 
 function syncAggregateSpecToChecklist() {
-  const product = activeProduct();
-  if (!product) return false;
-
-  try {
-    const payload = JSON.parse(aggregateSpecInput.value);
-    applySpecPayloadToProduct(payload, product, selectedIndex);
-    aggregateSpecParseError = "";
-    aggregateSpecState.textContent = "Synced";
-    aggregateSpecState.className = "";
-    persist();
-    return true;
-  } catch {
-    aggregateSpecParseError = "Invalid JSON";
-    aggregateSpecState.textContent = "Invalid JSON";
-    aggregateSpecState.className = "error";
-    inspectSpecButton.disabled = true;
-    return false;
-  }
-}
-
-function applySpecPayloadToProduct(payload, product, stageIndex) {
-  if (payload.stage && typeof payload.stage === "object" && typeof payload.stage.targetDate === "string") {
-    product.targetDates[stageIndex] = payload.stage.targetDate;
-  }
-
-  if (payload.product && typeof payload.product === "object") {
-    product.productName = typeof payload.product.name === "string" ? payload.product.name : product.productName;
-    product.productType = typeof payload.product.type === "string" ? payload.product.type : product.productType;
-    product.formFactor = typeof payload.product.formFactor === "string" ? payload.product.formFactor : product.formFactor;
-    product.bomTarget = normalizePrice(payload.product.bomTarget);
-  }
-
-
-
-  if (!Array.isArray(payload.checklist)) return;
-
-  const stage = stages[stageIndex];
-  payload.checklist.forEach((entry) => {
-    if (!entry || typeof entry.item !== "string") return;
-    const checkIndex = stage.checklist.indexOf(entry.item);
-    if (checkIndex === -1) return;
-
-    if (isFeatureItem(entry.item)) {
-      const useCases = Array.isArray(entry.useCases) ? entry.useCases : Array.isArray(entry.features) ? entry.features : [];
-      product.checklistFeatures[stageIndex][checkIndex] = useCases.filter((item) => typeof item === "string");
-      return;
-    }
-
-    product.checklistContexts[stageIndex][checkIndex] = typeof entry.description === "string" ? entry.description : "";
-  });
+  return specController.syncAggregateSpecToChecklist();
 }
 
 async function inspectCurrentSpec() {
-  const product = activeProduct();
-  if (!product || isInspectingSpec) return;
-  if (!syncAggregateSpecToChecklist()) return;
-
-  const stageIndex = selectedIndex;
-  isInspectingSpec = true;
-  specInspectionError = "";
-  prdGenerationError = "";
-  logActivity(`${stages[stageIndex].name} spec inspection started`);
-  persist();
-  render();
-
-  try {
-    const payload = buildPrdPayload(stageIndex);
-    const result = await inspectSpec(stageIndex, payload);
-    const review = result.review.trim();
-    const approved = isApprovedReview(review);
-    product.specReviews[stageIndex] = {
-      status: approved ? "approved" : "needs_changes",
-      review,
-      reviewedAt: new Date().toISOString(),
-      specSignature: specSignature(payload)
-    };
-    logActivity(`${stages[stageIndex].name} spec inspection completed`);
-  } catch (error) {
-    specInspectionError = "failed";
-    product.specReviews[stageIndex] = {
-      status: "error",
-      review: error.message,
-      reviewedAt: new Date().toISOString(),
-      specSignature: specSignature(buildPrdPayload(stageIndex))
-    };
-    logActivity(`${stages[stageIndex].name} spec inspection failed`);
-  } finally {
-    isInspectingSpec = false;
-    persist();
-    render();
-  }
+  return specController.inspectCurrentSpec();
 }
 
 function render() {
@@ -1494,7 +1378,50 @@ if (checklist) {
   });
 }
 
-render();
+function initializeSpecController() {
+  window.stages = stages;
+  window.MakeflowAppState = {
+    getSelectedIndex: () => selectedIndex,
+    setSelectedIndex: (value) => { selectedIndex = value; },
+    getIsGeneratingPrd: () => isGeneratingPrd,
+    setIsGeneratingPrd: (value) => { isGeneratingPrd = value; },
+    setPrdGenerationError: (value) => { prdGenerationError = value; }
+  };
+
+  specController = window.createSpecController({
+    stages,
+    specWorkbench,
+    aggregateSpecInput,
+    aggregateSpecState,
+    specReviewResults,
+    inspectSpecButton,
+    activeProduct,
+    persist,
+    render,
+    logActivity,
+    normalizePrice,
+    isFeatureItem,
+    productDisplayName,
+    escapeHtml,
+    getSelectedIndex: () => selectedIndex,
+    setSelectedIndex: (value) => { selectedIndex = value; },
+    getIsInspectingSpec: () => isInspectingSpec,
+    getIsGeneratingPrd: () => isGeneratingPrd,
+    setIsInspectingSpec: (value) => { isInspectingSpec = value; },
+    setIsGeneratingPrd: (value) => { isGeneratingPrd = value; },
+    setPrdGenerationError: (value) => { prdGenerationError = value; },
+    setSpecInspectionError: (value) => { specInspectionError = value; },
+    setAggregateSpecParseError: (value) => { aggregateSpecParseError = value; }
+  });
+}
+
+function bootstrapApp() {
+  initializeSpecController();
+  render();
+}
+
+window.bootstrapApp = bootstrapApp;
+window.buildPrdPayload = buildPrdPayload;
 
 function parseDisplayDate(value) {
   if (!value || value === "Ongoing") return "";
@@ -1862,78 +1789,11 @@ async function updatePrdWithComments(currentPrd, comments) {
 }
 
 async function inspectSpec(stageIndex, payload = buildPrdPayload(stageIndex)) {
-  let response;
-
-  try {
-    response = await fetch("/api/inspect-spec", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-  } catch {
-    throw new Error("Could not reach the spec inspection server. Start the app with npm start and open the localhost URL printed by the server.");
-  }
-
-  const result = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(result.error || "Unable to inspect spec.");
-  }
-
-  if (!result.review) {
-    throw new Error("OpenAI returned an empty spec inspection.");
-  }
-
-  return result;
+  return specController.inspectSpec(stageIndex, payload);
 }
 
 function buildPrdPayload(stageIndex) {
-  const product = activeProduct();
-  if (!product) return {};
-
-  const stage = stages[stageIndex];
-
-  return {
-    stage: {
-      index: stageIndex + 1,
-      name: stage.name,
-      summary: stage.summary,
-      owner: stage.owner,
-      targetDate: product.targetDates[stageIndex],
-      deliverable: stage.deliverable,
-      decisionGate: stage.gate,
-      evidenceRequired: stage.evidence
-    },
-    product: {
-      name: product.productName?.trim() || productDisplayName(product),
-      type: product.productType,
-      formFactor: product.formFactor || "",
-      bomTarget: product.bomTarget
-    },
-    checklist: stage.checklist.map((item, checkIndex) => {
-      if (isFeatureItem(item)) {
-        return {
-          item,
-          type: "use_cases",
-          useCases: product.checklistFeatures[stageIndex][checkIndex]
-        };
-      }
-
-      return {
-        item,
-        type: "description",
-        description: product.checklistContexts[stageIndex][checkIndex]
-      };
-    }),
-
-    priorStages: stages.slice(0, stageIndex).map((priorStage, index) => ({
-      name: priorStage.name,
-      completed: product.completed[index],
-      prdOutput: product.prdOutputs[index]
-    }))
-  };
+  return specController.buildPrdPayload(stageIndex);
 }
 
 function getCompleteButtonMarkup(status) {
@@ -1945,24 +1805,19 @@ function getCompleteButtonMarkup(status) {
 }
 
 function getInspectSpecButtonMarkup() {
-  if (isInspectingSpec) {
-    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.64 5.64l2.12 2.12M16.24 16.24l2.12 2.12M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12"/></svg> Inspecting';
-  }
-
-  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h10M4 19h7"/><path d="m15 18 2 2 4-5"/></svg> Inspect spec';
+  return specController.getInspectSpecButtonMarkup();
 }
 
 function isCurrentSpecApproved(product, stageIndex) {
-  const review = product.specReviews?.[stageIndex];
-  return Boolean(review && review.status === "approved" && review.specSignature === specSignature(buildPrdPayload(stageIndex)));
+  return specController.isCurrentSpecApproved(product, stageIndex);
 }
 
 function specSignature(payload) {
-  return JSON.stringify(payload);
+  return specController.specSignature(payload);
 }
 
 function isApprovedReview(review) {
-  return review.trim().toLowerCase() === "approved";
+  return specController.isApprovedReview(review);
 }
 
 function createActivity(message, timestamp = new Date().toISOString()) {
