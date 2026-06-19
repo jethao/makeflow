@@ -13,42 +13,11 @@
 
   function createModalIfNeeded() {
     if (prdReviewModal) return;
-
-    const modalHTML = `
-      <div id="prdReviewModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="prdReviewTitle">
-        <section class="modal-panel prd-review-panel">
-          <div class="modal-header">
-            <div>
-              <span id="prdReviewStage"></span>
-              <h3 id="prdReviewTitle">Review Collected spec</h3>
-            </div>
-            <button id="prdReviewCloseButton" class="icon-button" type="button" aria-label="Close">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
-          <div class="prd-review-body">
-            <p>Review the collected spec before generating the PRD.</p>
-            <pre id="prdReviewContent" class="prd-review-content"></pre>
-            <label class="api-toggle-row" for="allowOpenAiToggle">
-              <span>
-                <strong>Allow OpenAI API call</strong>
-                <span id="openAiToggleStatus">Off by default. Turn on to generate the PRD.</span>
-              </span>
-              <input id="allowOpenAiToggle" type="checkbox">
-              <span class="toggle-track" aria-hidden="true"><span></span></span>
-            </label>
-          </div>
-          <div class="modal-footer">
-            <button id="prdReviewCancelButton" class="secondary-button" type="button">Cancel</button>
-            <button id="prdReviewConfirmButton" class="primary-button" type="button" disabled>Confirm and generate</button>
-          </div>
-        </section>
-      </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-
     prdReviewModal = document.getElementById('prdReviewModal');
+    if (!prdReviewModal) {
+      throw new Error('PRD review modal is missing from index.html.');
+    }
+
     prdReviewStage = document.getElementById('prdReviewStage');
     prdReviewContent = document.getElementById('prdReviewContent');
     prdReviewCloseButton = document.getElementById('prdReviewCloseButton');
@@ -68,11 +37,11 @@
     };
     allowOpenAiToggle.addEventListener('change', updatePrdReviewActionState);
     prdReviewModal.addEventListener('click', (event) => {
-      if (event.target === prdReviewModal) closePrdReviewModal();
+      if (event.target === prdReviewModal && !isGeneratingPrd()) closePrdReviewModal();
     });
 
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && prdReviewModal && !prdReviewModal.classList.contains('is-hidden')) {
+      if (event.key === 'Escape' && prdReviewModal && !prdReviewModal.classList.contains('is-hidden') && !isGeneratingPrd()) {
         closePrdReviewModal();
       }
     });
@@ -82,7 +51,7 @@
     const allowed = allowOpenAiToggle.checked;
     prdReviewConfirmButton.disabled = !allowed;
     openAiToggleStatus.textContent = allowed
-      ? "On. Confirming will send this input to OpenAI."
+      ? "On. OK will send this input to OpenAI."
       : "Off by default. Turn on to generate the PRD.";
   }
 
@@ -204,7 +173,7 @@
       }
       if (prdReviewConfirmButton) {
         prdReviewConfirmButton.disabled = true;
-        prdReviewConfirmButton.textContent = "Confirm and generate";
+        prdReviewConfirmButton.textContent = "OK";
         prdReviewConfirmButton.onclick = () => { 
           if (window.generateConfirmedPrd) window.generateConfirmedPrd(); 
         };
@@ -233,36 +202,20 @@
 
   window.closePrdReviewModal = function() {
     if (!prdReviewModal) return;
+    if (isGeneratingPrd()) return;
     pendingPrdStageIndex = null;
     reviewingGeneratedPrd = false;
     if (allowOpenAiToggle) {
       allowOpenAiToggle.checked = false;
     }
-    prdReviewConfirmButton.textContent = "Confirm and generate";
-    if (prdReviewCancelButton) {
-      prdReviewCancelButton.textContent = "Cancel";
-      prdReviewCancelButton.onclick = null;  // reset
-    }
-    if (prdReviewConfirmButton) {
-      prdReviewConfirmButton.onclick = null;
-    }
-    if (prdReviewCloseButton) {
-      prdReviewCloseButton.onclick = null;
-    }
-    if (allowOpenAiToggle && allowOpenAiToggle.parentElement) {
-      allowOpenAiToggle.parentElement.style.display = "";
-    }
-    // reset any hidden p
-    const p = prdReviewModal ? prdReviewModal.querySelector('.prd-review-body > p') : null;
-    if (p) p.style.display = '';
-    updatePrdReviewActionState();
+    resetModalControls();
     prdReviewModal.classList.add('is-hidden');
     if (window.render) window.render();
   };
 
   window.generateConfirmedPrd = function() {
     const product = window.activeProduct ? window.activeProduct() : null;
-    if (pendingPrdStageIndex === null || window.isGeneratingPrd) return;
+    if (pendingPrdStageIndex === null || isGeneratingPrd()) return;
     if (!product) return;
 
     const stageIndex = pendingPrdStageIndex;
@@ -286,14 +239,14 @@
     }
 
     // Keep the popup open and show waiting state (for spec generation)
-    window.isGeneratingPrd = true;
-    window.prdGenerationError = "";
+    setGeneratingPrd(true);
+    setPrdGenerationError("");
     if (window.logActivity) window.logActivity(`${window.stages ? window.stages[stageIndex].name : 'Stage'} PRD generation started`);
     if (window.persist) window.persist();
-    if (window.render) window.render();
 
     // Update modal UI to waiting / generating state (do not close yet)
     updateModalToWaitingState();
+    if (window.render) window.render();
 
     (async () => {
       try {
@@ -315,22 +268,18 @@
         if (window.logActivity) window.logActivity(`${window.stages ? window.stages[stageIndex].name : 'Stage'} PRD generated at ${result.outputFile}`);
 
         if (window.stages && stageIndex < window.stages.length - 1) {
-          if (window.selectedIndex !== undefined) {
-            window.selectedIndex = stageIndex + 1;
-            if (window.logActivity) window.logActivity(`${window.stages[window.selectedIndex].name} unlocked`);
-          }
+          setSelectedIndex(stageIndex + 1);
+          if (window.logActivity) window.logActivity(`${window.stages[getSelectedIndex()].name} unlocked`);
         }
 
-        // Update modal to success state (still open)
-        updateModalToSuccessState(result);
+        closePrdReviewModalAfterSuccess();
       } catch (error) {
-        if (window.prdGenerationError !== undefined) window.prdGenerationError = error.message;
+        setPrdGenerationError(error.message);
         if (window.logActivity) window.logActivity(`PRD generation failed: ${error.message}`);
 
-        // Update modal to error state
         updateModalToErrorState(error.message);
       } finally {
-        if (window.isGeneratingPrd !== undefined) window.isGeneratingPrd = false;
+        setGeneratingPrd(false);
         if (window.persist) window.persist();
         if (window.render) window.render();
       }
@@ -339,10 +288,10 @@
 
   function updateModalToWaitingState() {
     const titleEl = document.getElementById("prdReviewTitle");
-    if (titleEl) titleEl.textContent = "Generating PRD...";
+    if (titleEl) titleEl.textContent = "Writing PRD";
 
     if (prdReviewContent) {
-      prdReviewContent.innerHTML = '<div style="text-align: center; padding: 20px;">Please wait while OpenAI generates the PRD.<br>This may take a few moments...</div>';
+      prdReviewContent.innerHTML = '<div style="text-align: center; padding: 20px;">Writing PRD from the collected spec.<br>This may take a few moments...</div>';
     }
 
     // Hide the description and toggle
@@ -361,35 +310,14 @@
     }
   }
 
-  function updateModalToSuccessState(result) {
-    const titleEl = document.getElementById("prdReviewTitle");
-    if (titleEl) titleEl.textContent = "PRD Generated";
-
-    if (prdReviewContent) {
-      const fileInfo = result && result.outputFile ? `<div style="margin-top:8px; font-size:12px; opacity:0.8;">Saved to ${result.outputFile}</div>` : '';
-      let body = '<div>PRD generated.</div>';
-      if (result && result.prd) {
-        if (window.renderMarkdown) {
-          body = window.renderMarkdown(result.prd);
-        } else {
-          body = `<pre class="prd-markdown" style="max-height:320px;">${escapeHtml(result.prd)}</pre>`;
-        }
-      }
-      prdReviewContent.innerHTML = body + fileInfo;
+  function closePrdReviewModalAfterSuccess() {
+    pendingPrdStageIndex = null;
+    reviewingGeneratedPrd = false;
+    if (allowOpenAiToggle) {
+      allowOpenAiToggle.checked = false;
     }
-
-    // Re-enable close and change buttons to close the modal
-    if (prdReviewCloseButton) prdReviewCloseButton.disabled = false;
-    if (prdReviewCancelButton) {
-      prdReviewCancelButton.disabled = false;
-      prdReviewCancelButton.textContent = 'Close';
-      prdReviewCancelButton.onclick = () => window.closePrdReviewModal();
-    }
-    if (prdReviewConfirmButton) {
-      prdReviewConfirmButton.disabled = false;
-      prdReviewConfirmButton.textContent = 'Done';
-      prdReviewConfirmButton.onclick = () => window.closePrdReviewModal();
-    }
+    resetModalControls();
+    prdReviewModal.classList.add('is-hidden');
   }
 
   function updateModalToErrorState(message) {
@@ -410,6 +338,54 @@
       prdReviewConfirmButton.disabled = false;
       prdReviewConfirmButton.textContent = 'Close';
       prdReviewConfirmButton.onclick = () => window.closePrdReviewModal();
+    }
+  }
+
+  function resetModalControls() {
+    prdReviewConfirmButton.textContent = "OK";
+    if (prdReviewCancelButton) {
+      prdReviewCancelButton.disabled = false;
+      prdReviewCancelButton.textContent = "Cancel";
+      prdReviewCancelButton.onclick = null;
+    }
+    if (prdReviewConfirmButton) {
+      prdReviewConfirmButton.onclick = null;
+    }
+    if (prdReviewCloseButton) {
+      prdReviewCloseButton.disabled = false;
+      prdReviewCloseButton.onclick = null;
+    }
+    if (allowOpenAiToggle && allowOpenAiToggle.parentElement) {
+      allowOpenAiToggle.parentElement.style.display = "";
+    }
+    const p = prdReviewModal ? prdReviewModal.querySelector('.prd-review-body > p') : null;
+    if (p) p.style.display = '';
+    updatePrdReviewActionState();
+  }
+
+  function isGeneratingPrd() {
+    return window.MakeflowAppState?.getIsGeneratingPrd ? window.MakeflowAppState.getIsGeneratingPrd() : false;
+  }
+
+  function setGeneratingPrd(value) {
+    if (window.MakeflowAppState?.setIsGeneratingPrd) {
+      window.MakeflowAppState.setIsGeneratingPrd(value);
+    }
+  }
+
+  function setPrdGenerationError(value) {
+    if (window.MakeflowAppState?.setPrdGenerationError) {
+      window.MakeflowAppState.setPrdGenerationError(value);
+    }
+  }
+
+  function getSelectedIndex() {
+    return window.MakeflowAppState?.getSelectedIndex ? window.MakeflowAppState.getSelectedIndex() : 0;
+  }
+
+  function setSelectedIndex(value) {
+    if (window.MakeflowAppState?.setSelectedIndex) {
+      window.MakeflowAppState.setSelectedIndex(value);
     }
   }
 
