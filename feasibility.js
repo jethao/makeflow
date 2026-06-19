@@ -175,6 +175,8 @@
         generatedAt: new Date().toISOString(),
         source: "Feasibility revision based on low scores"
       };
+      if (!product.feasibilityAnalyses) product.feasibilityAnalyses = [];
+      product.feasibilityAnalyses[2] = null;
       app().logActivity("PRD revised from feasibility findings");
       app().persist();
       if (content) {
@@ -183,7 +185,6 @@
           <div class="feasibility-prd-preview prd-markdown">
             ${app().renderMarkdown ? app().renderMarkdown(result.prd) : escapeHtml(result.prd)}
           </div>
-          ${renderAnalysis(getSavedAnalysis(product))}
         `;
       }
       updateReviseButtonVisibility(getSavedAnalysis(product));
