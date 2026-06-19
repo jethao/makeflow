@@ -330,6 +330,7 @@ svg {
   background: #fbfcfe;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .panel-title {
@@ -432,6 +433,7 @@ svg {
 
 .detail-panel {
   min-width: 0;
+  max-width: 100%;
   padding: 32px;
   overflow: auto;
 }
@@ -588,6 +590,12 @@ svg {
   list-style: none;
   margin: 0;
   padding: 8px 20px 20px;
+}
+
+.checklist-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 20px 20px;
 }
 
 .product-name-row,
@@ -846,6 +854,108 @@ svg {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.spec-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 18px;
+  margin-top: 18px;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.spec-editor-card,
+.spec-results-card {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.section-heading span.error {
+  color: #b42318;
+}
+
+.spec-editor-card textarea {
+  width: calc(100% - 40px);
+  max-width: calc(100% - 40px);
+  min-width: 0;
+  min-height: 420px;
+  margin: 20px 20px 0;
+  padding: 16px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e5edf8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  outline: none;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.spec-editor-card textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.13);
+}
+
+.spec-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 20px 20px;
+}
+
+.spec-review-results {
+  max-height: 540px;
+  min-height: 420px;
+  overflow: auto;
+  padding: 20px;
+}
+
+.empty-result {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.result-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-bottom: 12px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.result-status.approved {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.result-status.error {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.spec-review-results pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #273142;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .notes-row {
@@ -1131,22 +1241,6 @@ svg {
   overflow-wrap: anywhere;
 }
 
-.spec-inspect-json {
-  max-height: min(58vh, 560px);
-  margin: 0;
-  padding: 16px;
-  overflow: auto;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: #0f172a;
-  color: #e5edf8;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .api-toggle-row {
   min-height: 64px;
   display: grid;
@@ -1233,8 +1327,9 @@ svg {
   }
 
   .detail-header,
-  .content-grid {
-    grid-template-columns: 1fr;
+  .content-grid,
+  .spec-workbench {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .meta-grid {
@@ -1248,6 +1343,8 @@ svg {
   }
 
   .topbar {
+    width: 100%;
+    max-width: 100vw;
     min-height: 60px;
     padding: 0 14px;
   }
@@ -1262,11 +1359,14 @@ svg {
 
   .workspace {
     display: block;
+    width: 100%;
+    max-width: 100vw;
   }
 
   .step-panel {
     border-right: 0;
     border-bottom: 1px solid var(--line);
+    overflow: hidden;
   }
 
   .step-list {
@@ -1306,7 +1406,14 @@ svg {
   }
 
   .detail-panel {
+    width: 100%;
+    max-width: 100vw;
     padding: 22px 14px;
+  }
+
+  .spec-workbench {
+    width: 100%;
+    max-width: 100%;
   }
 
   .stage-line {
