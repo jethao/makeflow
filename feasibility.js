@@ -153,8 +153,8 @@
     const analysis = getSavedAnalysis(product);
     if (!prd?.content || !hasLowFeasibilityScores(analysis) || isRevising) return;
 
-    const comments = buildRevisionComments(analysis);
-    if (comments.length === 0) return;
+    const lowAssessments = buildLowAssessments(analysis);
+    if (lowAssessments.length === 0) return;
 
     isRevising = true;
     setRevisionUiState(true);
@@ -163,7 +163,7 @@
     }
 
     try {
-      const result = await requestPrdRevision(prd.content, comments);
+      const result = await requestPrdRevision(prd.content, lowAssessments);
       product.prdOutputs[1] = {
         ...prd,
         content: result.prd,
@@ -224,7 +224,7 @@
     return result;
   }
 
-  async function requestPrdRevision(currentPrd, comments) {
+  async function requestPrdRevision(currentPrd, lowAssessments) {
     let response;
     try {
       response = await fetch("/api/update-prd", {
@@ -232,7 +232,15 @@
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ currentPrd, comments })
+        body: JSON.stringify({
+          currentPrd,
+          lowAssessments,
+          comments: buildRevisionComments({ scores: lowAssessments.map((item) => ({
+            area: item.area,
+            score: item.score,
+            rationale: item.rationale
+          })) })
+        })
       });
     } catch {
       throw new Error("Could not reach the PRD update server. Start the app with npm start and open the localhost URL printed by the server.");
@@ -302,18 +310,28 @@
   }
 
   function buildRevisionComments(analysis) {
-    return Array.isArray(analysis?.scores)
-      ? analysis.scores
-          .filter((score) => normalizeScore(score?.score) === "low")
-          .map((score) => ({
-            quote: `${String(score?.area || "Feasibility")} feasibility: low`,
-            comment: `Revise the PRD to address: ${String(score?.rationale || "This area needs clearer product definition.").trim()}`
-          }))
-      : [];
+    return buildLowAssessments(analysis).map((item) => ({
+      quote: `${item.area} feasibility: ${item.score}`,
+      comment: item.rationale
+        ? `Revise the PRD to address: ${item.rationale}`
+        : "Revise the PRD to address this low feasibility finding."
+    }));
   }
 
   function hasLowFeasibilityScores(analysis) {
     return Array.isArray(analysis?.scores) && analysis.scores.some((score) => normalizeScore(score?.score) === "low");
+  }
+
+  function buildLowAssessments(analysis) {
+    return Array.isArray(analysis?.scores)
+      ? analysis.scores
+          .filter((score) => normalizeScore(score?.score) === "low")
+          .map((score) => ({
+            area: String(score?.area || "Feasibility"),
+            score: "low",
+            rationale: String(score?.rationale || "This area needs clearer product definition.").trim()
+          }))
+      : [];
   }
 
   function bindRevisionButton(root) {

@@ -112,8 +112,13 @@ async function handleUpdatePrd(request, response) {
   }
 
   const payload = await readJsonBody(request);
-  if (!payload || typeof payload.currentPrd !== "string" || !payload.currentPrd.trim() || !Array.isArray(payload.comments)) {
-    sendJson(response, 400, { error: "currentPrd (string) and comments (array) are required." });
+  const revisionItems = Array.isArray(payload?.lowAssessments) && payload.lowAssessments.length
+    ? payload.lowAssessments
+    : Array.isArray(payload?.comments)
+      ? payload.comments
+      : [];
+  if (!payload || typeof payload.currentPrd !== "string" || !payload.currentPrd.trim() || revisionItems.length === 0) {
+    sendJson(response, 400, { error: "currentPrd (string) and lowAssessments/comments (array) are required." });
     return;
   }
 
@@ -129,7 +134,7 @@ async function handleUpdatePrd(request, response) {
     generatedAt: new Date().toISOString(),
     source: "Makeflow",
     currentPrd: payload.currentPrd,
-    comments: payload.comments
+    lowAssessments: revisionItems
   };
 
   await writeFile(inputPath, `${JSON.stringify(inputDocument, null, 2)}\n`, "utf8");
@@ -209,9 +214,12 @@ async function handleAnalyzeFeasibility(request, response) {
 }
 
 async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
-  const commentsText = (inputDocument.comments || []).map((c, i) => {
-    return `${i+1}. Quote: "${c.quote || ''}"\n   Comment: ${c.comment || ''}`;
-  }).join('\n\n') || '(no comments)';
+  const revisionItemsText = (inputDocument.lowAssessments || []).map((item, i) => {
+    const area = item?.area || `Finding ${i + 1}`;
+    const score = item?.score || "low";
+    const rationale = item?.rationale || item?.comment || item?.quote || "No rationale provided.";
+    return `${i + 1}. Area: ${area}\n   Score: ${score}\n   Rationale: ${rationale}`;
+  }).join("\n\n") || "(no low feasibility findings)";
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -221,7 +229,7 @@ async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
     },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
-      prompt_cache_key: "makeflow-prd-update-v1",
+      prompt_cache_key: "makeflow-prd-update-v2",
       prompt_cache_retention: PROMPT_CACHE_RETENTION,
       input: [
         {
@@ -229,7 +237,7 @@ async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
           content: [
             {
               type: "input_text",
-              text: "You are a senior product manager. Update the existing Product Requirements Document based on the stakeholder comments provided. Incorporate the feedback into the relevant sections. Keep any existing version information and increment the version appropriately if a version is present (e.g. v1.0 -> v1.1). Output ONLY the complete updated Markdown PRD. Do not add any preamble, explanations, or code fences."
+              text: "You are a senior product manager and system-minded PRD editor. Revise the existing Product Requirements Document using the low feasibility findings provided below. Treat every low finding as a required change target. Strengthen the PRD so it better addresses architecture, hardware, software, manufacturing, compliance, supply chain, risks, assumptions, dependencies, verification, and constraints that make the product more realistic. Preserve accurate existing content where it is still valid, but rewrite any weak or underspecified sections so the PRD is materially better and more actionable. Keep any existing version information and increment the version appropriately if a version is present (e.g. v1.0 -> v1.1). Output ONLY the complete updated Markdown PRD. Do not add any preamble, explanations, or code fences."
             }
           ]
         },
@@ -238,7 +246,7 @@ async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
           content: [
             {
               type: "input_text",
-              text: `Current PRD:\n\n${inputDocument.currentPrd}\n\nComments to address:\n${commentsText}\n\nPlease produce the updated PRD.`
+              text: `Current PRD:\n\n${inputDocument.currentPrd}\n\nLow feasibility findings to address:\n${revisionItemsText}\n\nRewrite the PRD so these findings are addressed directly and the document is stronger overall.`
             }
           ]
         }
