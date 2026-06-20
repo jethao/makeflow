@@ -206,6 +206,8 @@ function loadState() {
       specReviews: stages.map((_, index) => normalizeSpecReview(saved.specReviews?.[index])),
       prdOutputs: stages.map((_, index) => normalizePrdOutput(saved.prdOutputs?.[index])),
       feasibilityAnalyses: stages.map((_, index) => normalizeFeasibilityAnalysis(saved.feasibilityAnalyses?.[index])),
+      designOutputs: normalizeDesignOutputs(saved.designOutputs),
+      designCostEstimate: normalizeDesignCostEstimate(saved.designCostEstimate),
 
       activity: normalizeActivity(saved.activity),
       selectedIndex: Math.min(saved.selectedIndex || 0, stages.length - 1)
@@ -237,6 +239,8 @@ function createProduct(overrides = {}) {
     specWorkbenchOpen: Array(stages.length).fill(false),
     prdOutputs: Array(stages.length).fill(null),
     feasibilityAnalyses: Array(stages.length).fill(null),
+    designOutputs: {},
+    designCostEstimate: null,
 
     activity: [createActivity("Workflow started")],
     selectedIndex: 0,
@@ -263,6 +267,8 @@ function normalizeProduct(product) {
     specWorkbenchOpen: stages.map((_, index) => Boolean(product.specWorkbenchOpen?.[index])),
     prdOutputs: stages.map((_, index) => normalizePrdOutput(product.prdOutputs?.[index])),
     feasibilityAnalyses: stages.map((_, index) => normalizeFeasibilityAnalysis(product.feasibilityAnalyses?.[index])),
+    designOutputs: normalizeDesignOutputs(product.designOutputs),
+    designCostEstimate: normalizeDesignCostEstimate(product.designCostEstimate),
 
     activity: normalizeActivity(product.activity),
     selectedIndex: Math.min(product.selectedIndex || 0, stages.length - 1)
@@ -446,6 +452,20 @@ function renderDetails() {
     const oldProceed = document.getElementById('proceedSection');
     if (oldProceed) oldProceed.remove();
     window.FeasibilityAnalysis.renderStage(product, {
+      productRows,
+      checklistNextButton,
+      heading,
+      actionRow,
+      specWorkbench,
+      checklist,
+      checklistCount
+    });
+  } else if (selectedIndex === 3 && window.DesignStage) {
+    const oldUpdate = document.getElementById('updatePrdSection');
+    if (oldUpdate) oldUpdate.remove();
+    const oldProceed = document.getElementById('proceedSection');
+    if (oldProceed) oldProceed.remove();
+    window.DesignStage.renderStage(product, {
       productRows,
       checklistNextButton,
       heading,
@@ -1562,6 +1582,43 @@ function normalizeFeasibilityAnalysis(analysis) {
     analyzedAt: typeof analysis.analyzedAt === "string" ? analysis.analyzedAt : "",
     inputFile: typeof analysis.inputFile === "string" ? analysis.inputFile : "",
     outputFile: typeof analysis.outputFile === "string" ? analysis.outputFile : ""
+  };
+}
+
+function normalizeDesignOutputs(outputs) {
+  if (!outputs || typeof outputs !== "object") return {};
+
+  return Object.fromEntries(Object.entries(outputs)
+    .filter(([, output]) => output && typeof output === "object")
+    .map(([key, output]) => [key, {
+      key,
+      title: typeof output.title === "string" ? output.title : key,
+      content: typeof output.content === "string" ? output.content : "",
+      generatedAt: typeof output.generatedAt === "string" ? output.generatedAt : "",
+      inputFile: typeof output.inputFile === "string" ? output.inputFile : "",
+      outputFile: typeof output.outputFile === "string" ? output.outputFile : ""
+    }]));
+}
+
+function normalizeDesignCostEstimate(estimate) {
+  if (!estimate || typeof estimate !== "object") return null;
+
+  return {
+    summary: typeof estimate.summary === "string" ? estimate.summary : "",
+    estimatedAt: typeof estimate.estimatedAt === "string" ? estimate.estimatedAt : "",
+    items: Array.isArray(estimate.items)
+      ? estimate.items.map((item) => ({
+          designType: typeof item.designType === "string" ? item.designType : "",
+          title: typeof item.title === "string" ? item.title : "",
+          low: Number.isFinite(Number(item.low)) ? Number(item.low) : 0,
+          high: Number.isFinite(Number(item.high)) ? Number(item.high) : 0,
+          currency: typeof item.currency === "string" ? item.currency : "USD",
+          basis: typeof item.basis === "string" ? item.basis : ""
+        }))
+      : [],
+    totalLow: Number.isFinite(Number(estimate.totalLow)) ? Number(estimate.totalLow) : 0,
+    totalHigh: Number.isFinite(Number(estimate.totalHigh)) ? Number(estimate.totalHigh) : 0,
+    currency: typeof estimate.currency === "string" ? estimate.currency : "USD"
   };
 }
 

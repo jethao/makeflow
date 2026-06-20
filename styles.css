@@ -1115,6 +1115,241 @@ svg {
   line-height: 1.5;
 }
 
+.design-stage {
+  display: grid;
+  gap: 14px;
+}
+
+.design-stage > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.design-prd-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.design-prd-link {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.design-prd-link:hover,
+.design-prd-link:focus {
+  border-color: var(--blue);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.1);
+}
+
+.design-prd-link:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.design-prd-row .primary-button {
+  min-width: 120px;
+  height: 42px;
+  font-size: 14px;
+}
+
+.design-output-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.design-output-button {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 12px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.design-output-button:hover,
+.design-output-button:focus {
+  border-color: var(--blue);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.1);
+}
+
+.design-output-button span {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.design-output-button strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.design-pricing-section {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.design-pricing-table-wrap {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  overflow-x: auto;
+}
+
+.design-pricing-table-wrap > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.design-pricing-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.design-pricing-table th,
+.design-pricing-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.design-pricing-table th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.design-pricing-table tfoot th {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.design-pricing-table-wrap .primary-button {
+  justify-self: end;
+  min-width: 130px;
+  height: 42px;
+  font-size: 14px;
+}
+
+.design-prd-panel {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+.design-prd-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+}
+
+.design-feasibility-view {
+  display: grid;
+  gap: 16px;
+}
+
+.design-feasibility-view > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.design-feasibility-view h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.design-progress-content {
+  padding: 0 20px 20px;
+}
+
+.design-progress-list {
+  display: grid;
+  gap: 10px;
+}
+
+.design-progress-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.design-progress-item:last-child {
+  border-bottom: 0;
+}
+
+.design-progress-item strong {
+  min-width: 0;
+  font-size: 14px;
+}
+
+.design-progress-item > span:last-child {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.design-progress-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--faint);
+}
+
+.design-progress-dot.running {
+  background: var(--amber);
+}
+
+.design-progress-dot.done {
+  background: var(--green);
+}
+
+.design-progress-dot.failed {
+  background: #b42318;
+}
+
 .action-row {
   display: flex;
   align-items: center;
@@ -1743,6 +1978,10 @@ img.prd-comment-highlight,
   }
 
   .feasibility-score-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .design-output-grid {
     grid-template-columns: 1fr;
   }
 
