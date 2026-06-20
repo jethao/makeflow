@@ -11,6 +11,13 @@ const OUTPUT_DIR = join(__dirname, "generated");
 const ROOT_DIR = resolve(__dirname);
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const PROMPT_CACHE_RETENTION = process.env.OPENAI_PROMPT_CACHE_RETENTION || "in_memory";
+const DESIGN_TYPES = new Map([
+  ["mechanical", "Mechanical Design"],
+  ["electrical", "Electrical Design"],
+  ["software", "Software Design"],
+  ["industrial", "Industrial Design"],
+  ["test", "Test Spec"]
+]);
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -222,6 +229,113 @@ async function handleAnalyzeFeasibility(request, response) {
   });
 }
 
+async function handleGenerateDesign(request, response) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
+    return;
+  }
+
+  const payload = await readJsonBody(request);
+  const designType = typeof payload?.designType === "string" ? payload.designType : "";
+  const title = DESIGN_TYPES.get(designType);
+  if (!title) {
+    sendJson(response, 400, { error: "designType must be one of: mechanical, electrical, software, industrial, test." });
+    return;
+  }
+  if (!payload || typeof payload.prd !== "string" || !payload.prd.trim()) {
+    sendJson(response, 400, { error: "prd (string) is required." });
+    return;
+  }
+
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const inputPath = join(OUTPUT_DIR, `${timestamp}-${designType}-design-input.json`);
+  const outputPath = join(OUTPUT_DIR, `${timestamp}-${designType}-design.md`);
+  const inputDocument = {
+    generatedAt: new Date().toISOString(),
+    source: "Makeflow",
+    designType,
+    title,
+    prd: payload.prd,
+    feasibility: payload.feasibility || null
+  };
+
+  await writeFile(inputPath, `${JSON.stringify(inputDocument, null, 2)}\n`, "utf8");
+
+  let content;
+  try {
+    content = await callOpenAIForDesign(apiKey, inputDocument);
+  } catch (error) {
+    sendJson(response, 502, {
+      error: error.message || "OpenAI request failed.",
+      inputFile: relativeLocalPath(inputPath)
+    });
+    return;
+  }
+
+  await writeFile(outputPath, content, "utf8");
+
+  sendJson(response, 200, {
+    message: "Design generated",
+    designType,
+    title,
+    inputFile: relativeLocalPath(inputPath),
+    outputFile: relativeLocalPath(outputPath),
+    content
+  });
+}
+
+async function handleEstimateDesignPricing(request, response) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
+    return;
+  }
+
+  const payload = await readJsonBody(request);
+  if (!payload || typeof payload.prd !== "string" || !payload.prd.trim() || !payload.designs || typeof payload.designs !== "object") {
+    sendJson(response, 400, { error: "prd (string) and designs (object) are required." });
+    return;
+  }
+
+  await mkdir(OUTPUT_DIR, { recursive: true });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const inputPath = join(OUTPUT_DIR, `${timestamp}-design-pricing-input.json`);
+  const outputPath = join(OUTPUT_DIR, `${timestamp}-design-pricing.json`);
+  const inputDocument = {
+    generatedAt: new Date().toISOString(),
+    source: "Makeflow",
+    prd: payload.prd,
+    feasibility: payload.feasibility || null,
+    designs: payload.designs
+  };
+
+  await writeFile(inputPath, `${JSON.stringify(inputDocument, null, 2)}\n`, "utf8");
+
+  let estimate;
+  try {
+    estimate = await callOpenAIForDesignPricing(apiKey, inputDocument);
+  } catch (error) {
+    sendJson(response, 502, {
+      error: error.message || "OpenAI request failed.",
+      inputFile: relativeLocalPath(inputPath)
+    });
+    return;
+  }
+
+  await writeFile(outputPath, `${JSON.stringify(estimate, null, 2)}\n`, "utf8");
+
+  sendJson(response, 200, {
+    message: "Design pricing estimated",
+    inputFile: relativeLocalPath(inputPath),
+    outputFile: relativeLocalPath(outputPath),
+    estimate
+  });
+}
+
 async function callOpenAIForPrdUpdate(apiKey, inputDocument) {
   const revisionItemsText = (inputDocument.lowAssessments || []).map((item, i) => {
     const area = item?.area || `Finding ${i + 1}`;
@@ -395,6 +509,173 @@ async function callOpenAIForFeasibility(apiKey, inputDocument) {
   }
 }
 
+async function callOpenAIForDesign(apiKey, inputDocument) {
+  const guidance = getDesignPromptGuidance(inputDocument.designType);
+  const requestBody = {
+    model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+    prompt_cache_key: `makeflow-design-${inputDocument.designType}-v1`,
+    prompt_cache_retention: PROMPT_CACHE_RETENTION,
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: `You are a senior product design engineer creating demo-stage design documentation. Produce a practical Markdown ${inputDocument.title}. ${guidance} Keep it concise but complete enough for a demo review. Include assumptions, architecture/structure, major components, interfaces, risks, and next validation steps where relevant. Output ONLY Markdown. Do not include preamble or code fences.`
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `Create ${inputDocument.title} from this PRD and feasibility context.\n\nPRD:\n${inputDocument.prd}\n\nFeasibility:\n${JSON.stringify(inputDocument.feasibility || {}, null, 2)}`
+          }
+        ]
+      }
+    ]
+  };
+
+  console.log("[OpenAI design request]");
+  console.log(JSON.stringify({
+    sentAt: new Date().toISOString(),
+    endpoint: "https://api.openai.com/v1/responses",
+    designType: inputDocument.designType,
+    title: inputDocument.title,
+    body: requestBody
+  }, null, 2));
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = data?.error?.message || `OpenAI request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  const text = extractResponseText(data);
+  if (!text.trim()) {
+    throw new Error("OpenAI returned an empty design document.");
+  }
+
+  return text.trimEnd() + "\n";
+}
+
+async function callOpenAIForDesignPricing(apiKey, inputDocument) {
+  const requestBody = {
+    model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
+    prompt_cache_key: "makeflow-design-pricing-v1",
+    prompt_cache_retention: PROMPT_CACHE_RETENTION,
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: "You are a pragmatic product development cost estimator. Estimate demo-stage implementation cost for each supplied design document. Return ONLY valid JSON with this exact shape: {\"summary\":\"...\",\"currency\":\"USD\",\"items\":[{\"designType\":\"mechanical|electrical|software|industrial|test\",\"title\":\"...\",\"low\":0,\"high\":0,\"basis\":\"...\"}],\"totalLow\":0,\"totalHigh\":0}. Use realistic but rough ranges in USD. Include engineering labor, prototyping, basic materials, software implementation effort, and test execution where relevant. Do not include preamble, commentary, markdown, or code fences."
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `Estimate implementation pricing from this PRD, feasibility assessment, and generated designs.\n\nPRD:\n${inputDocument.prd}\n\nFeasibility:\n${JSON.stringify(inputDocument.feasibility || {}, null, 2)}\n\nDesigns:\n${JSON.stringify(inputDocument.designs, null, 2)}`
+          }
+        ]
+      }
+    ]
+  };
+
+  console.log("[OpenAI design pricing request]");
+  console.log(JSON.stringify({
+    sentAt: new Date().toISOString(),
+    endpoint: "https://api.openai.com/v1/responses",
+    body: requestBody
+  }, null, 2));
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const message = data?.error?.message || `OpenAI request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  const text = extractResponseText(data);
+  if (!text.trim()) {
+    throw new Error("OpenAI returned an empty design pricing estimate.");
+  }
+
+  try {
+    return normalizeDesignPricingEstimate(JSON.parse(stripJsonEnvelope(text)));
+  } catch {
+    throw new Error("OpenAI returned invalid design pricing JSON.");
+  }
+}
+
+function normalizeDesignPricingEstimate(input) {
+  const source = input && typeof input === "object" ? input : {};
+  const items = Array.isArray(source.items) ? source.items : [];
+  const normalizedItems = items.map((item) => ({
+    designType: typeof item?.designType === "string" ? item.designType : "",
+    title: typeof item?.title === "string" ? item.title : "",
+    low: Number.isFinite(Number(item?.low)) ? Number(item.low) : 0,
+    high: Number.isFinite(Number(item?.high)) ? Number(item.high) : 0,
+    currency: typeof item?.currency === "string" ? item.currency : (typeof source.currency === "string" ? source.currency : "USD"),
+    basis: typeof item?.basis === "string" ? item.basis : ""
+  }));
+
+  const totalLow = Number.isFinite(Number(source.totalLow))
+    ? Number(source.totalLow)
+    : normalizedItems.reduce((sum, item) => sum + item.low, 0);
+  const totalHigh = Number.isFinite(Number(source.totalHigh))
+    ? Number(source.totalHigh)
+    : normalizedItems.reduce((sum, item) => sum + item.high, 0);
+
+  return {
+    summary: typeof source.summary === "string" ? source.summary : "",
+    currency: typeof source.currency === "string" ? source.currency : "USD",
+    items: normalizedItems,
+    totalLow,
+    totalHigh
+  };
+}
+
+function getDesignPromptGuidance(designType) {
+  if (designType === "mechanical") {
+    return "Focus on enclosure, materials, mounting, thermal, ingress, serviceability, assembly, tolerances, and mechanical risks.";
+  }
+  if (designType === "electrical") {
+    return "Focus on power architecture, sensors, battery/charging if relevant, radios, connectors, PCB partitioning, safety, EMI/EMC, and electrical validation.";
+  }
+  if (designType === "software") {
+    return "Cover firmware, mobile app, and backend. Include system architecture, data flow, APIs, device communication, state handling, security, observability, update strategy, and testing.";
+  }
+  if (designType === "industrial") {
+    return "Focus on user-facing form, ergonomics, CMF, branding, affordances, accessibility, physical interaction, packaging cues, and manufacturable appearance.";
+  }
+  return "Create a test specification covering mechanical, electrical, firmware, mobile app, backend, integration, reliability, manufacturing, and acceptance tests.";
+}
+
 async function callOpenAIForSpecReview(apiKey, specDocument) {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -503,6 +784,13 @@ function extractResponseText(data) {
     .trim();
 }
 
+function stripJsonEnvelope(text) {
+  return String(text || "")
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "");
+}
+
 async function readJsonBody(request) {
   let body = "";
   for await (const chunk of request) {
@@ -597,7 +885,7 @@ async function handleRequest(request, response) {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
 
     // Handle API routes first
-    if (url.pathname === "/api/inspect-spec" || url.pathname === "/api/generate-prd" || url.pathname === "/api/update-prd" || url.pathname === "/api/analyze-feasibility") {
+    if (url.pathname === "/api/inspect-spec" || url.pathname === "/api/generate-prd" || url.pathname === "/api/update-prd" || url.pathname === "/api/analyze-feasibility" || url.pathname === "/api/generate-design" || url.pathname === "/api/estimate-design-pricing") {
       if (request.method === "OPTIONS") {
         response.writeHead(204, {
           "Access-Control-Allow-Origin": "*",
@@ -623,6 +911,14 @@ async function handleRequest(request, response) {
         }
         if (url.pathname === "/api/analyze-feasibility") {
           await handleAnalyzeFeasibility(request, response);
+          return;
+        }
+        if (url.pathname === "/api/generate-design") {
+          await handleGenerateDesign(request, response);
+          return;
+        }
+        if (url.pathname === "/api/estimate-design-pricing") {
+          await handleEstimateDesignPricing(request, response);
           return;
         }
       }
