@@ -1,6 +1,7 @@
 export function isPrdReviewUnlocked(product, index) {
   if (!product) return false;
   if (index === 0 || index === 1) return true;
+  if (product.completed?.[index]) return true;
   return Boolean(product.completed?.[index - 1]);
 }
 

@@ -1574,7 +1574,9 @@ svg {
 
 .evt-stage,
 .dvt-stage,
-.pvt-stage {
+.pvt-stage,
+.mp-stage,
+.maintenance-stage {
   display: grid;
   gap: 14px;
   padding: 16px;
@@ -1585,7 +1587,9 @@ svg {
 
 .evt-stage p,
 .dvt-stage p,
-.pvt-stage p {
+.pvt-stage p,
+.mp-stage p,
+.maintenance-stage p {
   margin: 0;
   color: var(--muted);
   font-size: 14px;
@@ -1597,7 +1601,8 @@ svg {
 .dvt-stage-estimate,
 .dvt-pvt-estimate,
 .pvt-stage-estimate,
-.pvt-mp-estimate {
+.pvt-mp-estimate,
+.mp-stage-estimate {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1620,7 +1625,8 @@ svg {
 .dvt-stage-estimate div,
 .dvt-pvt-estimate div,
 .pvt-stage-estimate div,
-.pvt-mp-estimate div {
+.pvt-mp-estimate div,
+.mp-stage-estimate div {
   display: grid;
   gap: 4px;
 }
@@ -1631,6 +1637,7 @@ svg {
 .dvt-pvt-estimate span,
 .pvt-stage-estimate span,
 .pvt-mp-estimate span,
+.mp-stage-estimate span,
 .evt-payment-amount span,
 .evt-payment-fields dt,
 .dvt-payment-amount span,
@@ -1650,6 +1657,7 @@ svg {
 .dvt-pvt-estimate strong,
 .pvt-stage-estimate strong,
 .pvt-mp-estimate strong,
+.mp-stage-estimate strong,
 .evt-payment-amount strong,
 .dvt-payment-amount strong,
 .pvt-payment-amount strong {
@@ -1806,7 +1814,9 @@ svg {
 .dvt-compliance-card,
 .pvt-factory-card,
 .pvt-supplier-card,
-.pvt-compliance-card {
+.pvt-compliance-card,
+.mp-factory-card,
+.mp-launch-card {
   display: grid;
   gap: 12px;
   padding: 14px;
@@ -1820,7 +1830,9 @@ svg {
 .dvt-compliance-card .section-heading h4,
 .pvt-factory-card .section-heading h4,
 .pvt-supplier-card .section-heading h4,
-.pvt-compliance-card .section-heading h4 {
+.pvt-compliance-card .section-heading h4,
+.mp-factory-card .section-heading h4,
+.mp-launch-card .section-heading h4 {
   margin: 0;
   font-size: 14px;
 }
@@ -1830,7 +1842,9 @@ svg {
 .dvt-compliance-grid,
 .pvt-factory-grid,
 .pvt-supplier-grid,
-.pvt-compliance-grid {
+.pvt-compliance-grid,
+.mp-factory-grid,
+.mp-launch-grid {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1841,7 +1855,9 @@ svg {
 .dvt-compliance-grid div,
 .pvt-factory-grid div,
 .pvt-supplier-grid div,
-.pvt-compliance-grid div {
+.pvt-compliance-grid div,
+.mp-factory-grid div,
+.mp-launch-grid div {
   display: grid;
   gap: 5px;
   padding: 12px;
@@ -1855,7 +1871,9 @@ svg {
 .dvt-compliance-grid span,
 .pvt-factory-grid span,
 .pvt-supplier-grid span,
-.pvt-compliance-grid span {
+.pvt-compliance-grid span,
+.mp-factory-grid span,
+.mp-launch-grid span {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
@@ -1868,7 +1886,9 @@ svg {
 .dvt-compliance-grid strong,
 .pvt-factory-grid strong,
 .pvt-supplier-grid strong,
-.pvt-compliance-grid strong {
+.pvt-compliance-grid strong,
+.mp-factory-grid strong,
+.mp-launch-grid strong {
   font-size: 18px;
   line-height: 1.25;
 }
@@ -1878,11 +1898,178 @@ svg {
 .dvt-compliance-grid em,
 .pvt-factory-grid em,
 .pvt-supplier-grid em,
-.pvt-compliance-grid em {
+.pvt-compliance-grid em,
+.mp-factory-grid em,
+.mp-launch-grid em {
   color: var(--muted);
   font-size: 13px;
   font-style: normal;
   line-height: 1.4;
+}
+
+.mp-sku-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.mp-sku-panel > div:not(.mp-sku-track) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mp-sku-panel span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mp-sku-panel strong {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.mp-sku-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.mp-sku-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+}
+
+.mp-sku-process-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mp-sku-process-list article {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.mp-sku-process-list article div:not(.mp-sku-track) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mp-sku-process-list article p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mp-sku-panel .secondary-button {
+  width: fit-content;
+  min-height: 36px;
+}
+
+.mp-sku-order-content {
+  display: grid;
+  gap: 14px;
+  text-align: left;
+}
+
+.mp-sku-order-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.mp-sku-order-grid label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.mp-sku-order-grid label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mp-sku-order-grid input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.mp-sku-order-grid input:focus {
+  border-color: rgba(21, 91, 216, 0.45);
+  box-shadow: 0 0 0 3px rgba(21, 91, 216, 0.12);
+  outline: none;
+}
+
+.maintenance-release-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.maintenance-release-card,
+.maintenance-cx-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.maintenance-release-card .section-heading h4,
+.maintenance-cx-card .section-heading h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.maintenance-release-card .section-heading span,
+.maintenance-cx-card .section-heading span {
+  white-space: nowrap;
+}
+
+.maintenance-release-card > strong {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.maintenance-release-card ul,
+.maintenance-cx-card ol {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.maintenance-cx-card ol {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 22px;
 }
 
 .evt-payment-summary,

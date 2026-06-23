@@ -118,7 +118,8 @@
   function approveMpPayment(product, deps) {
     if (!product || !Array.isArray(product.completed)) return;
     product.completed[7] = true;
-    if (typeof deps.logActivity === "function") deps.logActivity("MP estimate payment mocked and MP unlocked");
+    product.completed[9] = true;
+    if (typeof deps.logActivity === "function") deps.logActivity("MP estimate payment mocked and MP plus Maintenance unlocked");
     if (typeof deps.persist === "function") deps.persist();
     if (typeof deps.render === "function") deps.render();
   }
