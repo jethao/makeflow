@@ -113,12 +113,12 @@ test("PVT stage render includes MP estimate approval", () => {
   assert.match(elements.checklist.innerHTML, /Approve MP/);
 });
 
-test("MP payment closes popup and unlocks MP stage", () => {
+test("MP payment closes popup and unlocks MP and Maintenance stages", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("PVT.js", "utf8"), context);
 
   const product = {
-    completed: [true, true, true, true, true, true, true, false, false],
+    completed: [true, true, true, true, true, true, true, false, false, false],
     designCostEstimate: {
       stages: [
         {
@@ -147,6 +147,7 @@ test("MP payment closes popup and unlocks MP stage", () => {
   context.document.getElementById("mpPaymentConfirmButton").onclick();
 
   assert.equal(product.completed[7], true);
+  assert.equal(product.completed[9], true);
   assert.equal(persisted, true);
   assert.equal(rendered, true);
   assert.equal(modal.classList.contains("is-hidden"), true);

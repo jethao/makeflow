@@ -578,6 +578,34 @@ function renderDetails() {
       checklist,
       checklistCount
     });
+  } else if (selectedIndex === 8 && window.MPStage) {
+    const oldUpdate = document.getElementById('updatePrdSection');
+    if (oldUpdate) oldUpdate.remove();
+    const oldProceed = document.getElementById('proceedSection');
+    if (oldProceed) oldProceed.remove();
+    window.MPStage.renderStage(product, {
+      productRows,
+      checklistNextButton,
+      heading,
+      actionRow,
+      specWorkbench,
+      checklist,
+      checklistCount
+    });
+  } else if (selectedIndex === 9 && window.MaintenanceStage) {
+    const oldUpdate = document.getElementById('updatePrdSection');
+    if (oldUpdate) oldUpdate.remove();
+    const oldProceed = document.getElementById('proceedSection');
+    if (oldProceed) oldProceed.remove();
+    window.MaintenanceStage.renderStage(product, {
+      productRows,
+      checklistNextButton,
+      heading,
+      actionRow,
+      specWorkbench,
+      checklist,
+      checklistCount
+    });
   } else {
     const oldUpdate = document.getElementById('updatePrdSection');
     if (oldUpdate) oldUpdate.remove();

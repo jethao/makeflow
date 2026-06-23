@@ -17,6 +17,10 @@ test("other stages still require the previous stage to be complete", () => {
   assert.equal(isPrdReviewUnlocked({ completed: [true, true, false] }, 2), true);
 });
 
+test("completed stages remain accessible even when an intermediate stage is incomplete", () => {
+  assert.equal(isPrdReviewUnlocked({ completed: [false, false, false, true] }, 3), true);
+});
+
 test("PRD review prefers the accepted PRD review output over generated Spec output", () => {
   const product = {
     prdOutputs: [
