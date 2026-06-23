@@ -1572,7 +1572,9 @@ svg {
   font-weight: 750;
 }
 
-.evt-stage {
+.evt-stage,
+.dvt-stage,
+.pvt-stage {
   display: grid;
   gap: 14px;
   padding: 16px;
@@ -1581,7 +1583,9 @@ svg {
   background: var(--surface);
 }
 
-.evt-stage p {
+.evt-stage p,
+.dvt-stage p,
+.pvt-stage p {
   margin: 0;
   color: var(--muted);
   font-size: 14px;
@@ -1589,7 +1593,11 @@ svg {
 }
 
 .evt-stage-estimate,
-.evt-dvt-estimate {
+.evt-dvt-estimate,
+.dvt-stage-estimate,
+.dvt-pvt-estimate,
+.pvt-stage-estimate,
+.pvt-mp-estimate {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1600,21 +1608,35 @@ svg {
   background: var(--surface-soft);
 }
 
-.evt-dvt-estimate {
+.evt-dvt-estimate,
+.dvt-pvt-estimate,
+.pvt-mp-estimate {
   border-color: rgba(21, 91, 216, 0.22);
   background: var(--blue-soft);
 }
 
 .evt-stage-estimate div,
-.evt-dvt-estimate div {
+.evt-dvt-estimate div,
+.dvt-stage-estimate div,
+.dvt-pvt-estimate div,
+.pvt-stage-estimate div,
+.pvt-mp-estimate div {
   display: grid;
   gap: 4px;
 }
 
 .evt-stage-estimate span,
 .evt-dvt-estimate span,
+.dvt-stage-estimate span,
+.dvt-pvt-estimate span,
+.pvt-stage-estimate span,
+.pvt-mp-estimate span,
 .evt-payment-amount span,
-.evt-payment-fields dt {
+.evt-payment-fields dt,
+.dvt-payment-amount span,
+.dvt-payment-fields dt,
+.pvt-payment-amount span,
+.pvt-payment-fields dt {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
@@ -1624,19 +1646,31 @@ svg {
 
 .evt-stage-estimate strong,
 .evt-dvt-estimate strong,
-.evt-payment-amount strong {
+.dvt-stage-estimate strong,
+.dvt-pvt-estimate strong,
+.pvt-stage-estimate strong,
+.pvt-mp-estimate strong,
+.evt-payment-amount strong,
+.dvt-payment-amount strong,
+.pvt-payment-amount strong {
   font-size: 18px;
   line-height: 1.25;
 }
 
-.evt-dvt-estimate .primary-button {
+.evt-dvt-estimate .primary-button,
+.dvt-pvt-estimate .primary-button,
+.pvt-mp-estimate .primary-button {
   min-width: 132px;
   height: 40px;
   font-size: 14px;
 }
 
 .evt-progress-panel,
-.evt-test-panel {
+.evt-test-panel,
+.dvt-progress-panel,
+.dvt-test-panel,
+.pvt-progress-panel,
+.pvt-test-panel {
   display: grid;
   gap: 12px;
   padding: 14px;
@@ -1646,17 +1680,25 @@ svg {
 }
 
 .evt-progress-panel h4,
-.evt-test-panel h4 {
+.evt-test-panel h4,
+.dvt-progress-panel h4,
+.dvt-test-panel h4,
+.pvt-progress-panel h4,
+.pvt-test-panel h4 {
   margin: 0;
   font-size: 14px;
 }
 
-.evt-progress-list {
+.evt-progress-list,
+.dvt-progress-list,
+.pvt-progress-list {
   display: grid;
   gap: 10px;
 }
 
-.evt-progress-row {
+.evt-progress-row,
+.dvt-progress-row,
+.pvt-progress-row {
   display: grid;
   grid-template-columns: 44px minmax(120px, 1fr) 44px;
   gap: 10px;
@@ -1664,24 +1706,34 @@ svg {
 }
 
 .evt-progress-row > span,
-.evt-progress-row strong {
+.evt-progress-row strong,
+.dvt-progress-row > span,
+.dvt-progress-row strong,
+.pvt-progress-row > span,
+.pvt-progress-row strong {
   font-size: 13px;
   font-weight: 750;
 }
 
-.evt-progress-row strong {
+.evt-progress-row strong,
+.dvt-progress-row strong,
+.pvt-progress-row strong {
   color: var(--muted);
   text-align: right;
 }
 
-.evt-progress-track {
+.evt-progress-track,
+.dvt-progress-track,
+.pvt-progress-track {
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--line);
 }
 
-.evt-progress-track span {
+.evt-progress-track span,
+.dvt-progress-track span,
+.pvt-progress-track span {
   display: block;
   height: 100%;
   margin: 0;
@@ -1689,33 +1741,43 @@ svg {
   background: var(--blue);
 }
 
-.evt-test-layout {
+.evt-test-layout,
+.dvt-test-layout,
+.pvt-test-layout {
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
   gap: 18px;
   align-items: center;
 }
 
-.evt-test-pie {
+.evt-test-pie,
+.dvt-test-pie,
+.pvt-test-pie {
   width: 132px;
   aspect-ratio: 1;
   border-radius: 50%;
   box-shadow: inset 0 0 0 12px rgba(255, 255, 255, 0.55);
 }
 
-.evt-test-legend {
+.evt-test-legend,
+.dvt-test-legend,
+.pvt-test-legend {
   display: grid;
   gap: 8px;
 }
 
-.evt-test-legend div {
+.evt-test-legend div,
+.dvt-test-legend div,
+.pvt-test-legend div {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
 }
 
-.evt-test-legend span {
+.evt-test-legend span,
+.dvt-test-legend span,
+.pvt-test-legend span {
   width: 10px;
   height: 10px;
   margin: 0;
@@ -1723,17 +1785,28 @@ svg {
 }
 
 .evt-test-legend strong,
-.evt-test-legend em {
+.evt-test-legend em,
+.dvt-test-legend strong,
+.dvt-test-legend em,
+.pvt-test-legend strong,
+.pvt-test-legend em {
   font-size: 13px;
   font-style: normal;
 }
 
-.evt-test-legend em {
+.evt-test-legend em,
+.dvt-test-legend em,
+.pvt-test-legend em {
   color: var(--muted);
   font-weight: 750;
 }
 
-.evt-factory-card {
+.evt-factory-card,
+.dvt-factory-card,
+.dvt-compliance-card,
+.pvt-factory-card,
+.pvt-supplier-card,
+.pvt-compliance-card {
   display: grid;
   gap: 12px;
   padding: 14px;
@@ -1742,18 +1815,33 @@ svg {
   background: var(--surface-soft);
 }
 
-.evt-factory-card .section-heading h4 {
+.evt-factory-card .section-heading h4,
+.dvt-factory-card .section-heading h4,
+.dvt-compliance-card .section-heading h4,
+.pvt-factory-card .section-heading h4,
+.pvt-supplier-card .section-heading h4,
+.pvt-compliance-card .section-heading h4 {
   margin: 0;
   font-size: 14px;
 }
 
-.evt-factory-grid {
+.evt-factory-grid,
+.dvt-factory-grid,
+.dvt-compliance-grid,
+.pvt-factory-grid,
+.pvt-supplier-grid,
+.pvt-compliance-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.evt-factory-grid div {
+.evt-factory-grid div,
+.dvt-factory-grid div,
+.dvt-compliance-grid div,
+.pvt-factory-grid div,
+.pvt-supplier-grid div,
+.pvt-compliance-grid div {
   display: grid;
   gap: 5px;
   padding: 12px;
@@ -1762,7 +1850,12 @@ svg {
   background: var(--surface);
 }
 
-.evt-factory-grid span {
+.evt-factory-grid span,
+.dvt-factory-grid span,
+.dvt-compliance-grid span,
+.pvt-factory-grid span,
+.pvt-supplier-grid span,
+.pvt-compliance-grid span {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
@@ -1770,32 +1863,48 @@ svg {
   text-transform: uppercase;
 }
 
-.evt-factory-grid strong {
+.evt-factory-grid strong,
+.dvt-factory-grid strong,
+.dvt-compliance-grid strong,
+.pvt-factory-grid strong,
+.pvt-supplier-grid strong,
+.pvt-compliance-grid strong {
   font-size: 18px;
   line-height: 1.25;
 }
 
-.evt-factory-grid em {
+.evt-factory-grid em,
+.dvt-factory-grid em,
+.dvt-compliance-grid em,
+.pvt-factory-grid em,
+.pvt-supplier-grid em,
+.pvt-compliance-grid em {
   color: var(--muted);
   font-size: 13px;
   font-style: normal;
   line-height: 1.4;
 }
 
-.evt-payment-summary {
+.evt-payment-summary,
+.dvt-payment-summary,
+.pvt-payment-summary {
   display: grid;
   gap: 14px;
   text-align: left;
 }
 
-.evt-payment-summary p {
+.evt-payment-summary p,
+.dvt-payment-summary p,
+.pvt-payment-summary p {
   margin: 0;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.5;
 }
 
-.evt-payment-amount {
+.evt-payment-amount,
+.dvt-payment-amount,
+.pvt-payment-amount {
   display: grid;
   gap: 4px;
   padding: 14px;
@@ -1805,35 +1914,53 @@ svg {
 }
 
 .evt-payment-fields,
-.evt-payment-items {
+.evt-payment-items,
+.dvt-payment-fields,
+.dvt-payment-items,
+.pvt-payment-fields,
+.pvt-payment-items {
   display: grid;
   gap: 10px;
   margin: 0;
 }
 
 .evt-payment-items div,
-.evt-payment-fields div {
+.evt-payment-fields div,
+.dvt-payment-items div,
+.dvt-payment-fields div,
+.pvt-payment-items div,
+.pvt-payment-fields div {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.evt-payment-items div {
+.evt-payment-items div,
+.dvt-payment-items div,
+.pvt-payment-items div {
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
 }
 
-.evt-payment-fields div {
+.evt-payment-fields div,
+.dvt-payment-fields div,
+.pvt-payment-fields div {
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
 
 .evt-payment-items span,
 .evt-payment-items strong,
-.evt-payment-fields dd {
+.evt-payment-fields dd,
+.dvt-payment-items span,
+.dvt-payment-items strong,
+.dvt-payment-fields dd,
+.pvt-payment-items span,
+.pvt-payment-items strong,
+.pvt-payment-fields dd {
   margin: 0;
   color: var(--text);
   font-size: 13px;
