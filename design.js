@@ -11,6 +11,9 @@
   let designDocTitle = null;
   let designDocContent = null;
   let designDocCloseButton = null;
+  let paymentModal = null;
+  let paymentModalContent = null;
+  let paymentCloseButton = null;
   let isGeneratingDesigns = false;
   let isEstimatingPricing = false;
 
@@ -164,10 +167,7 @@
 
     try {
       const result = await requestPricingEstimate(prd.content, feasibility, product.designOutputs);
-      product.designCostEstimate = {
-        ...result.estimate,
-        estimatedAt: new Date().toISOString()
-      };
+      product.designCostEstimate = normalizeStagePricingEstimate(result.estimate);
       app().logActivity("Design pricing estimated");
       app().persist();
       hidePricingProgressModal();
@@ -210,11 +210,16 @@
   }
 
   function approveDesign(product) {
-    if (!product?.designCostEstimate?.items?.length) return;
+    if (!product?.designCostEstimate?.stages?.length) return;
+    openPrototypePaymentModal(product);
+  }
+
+  function completeDesignApproval(product) {
     if (!Array.isArray(product.completed)) return;
     product.completed[3] = true;
-    app().logActivity("Design pricing approved");
+    app().logActivity("Prototype pricing payment mocked and design pricing approved");
     app().persist();
+    closePrototypePaymentModal();
     app().render();
   }
 
@@ -450,36 +455,41 @@
   }
 
   function renderPricingTable(estimate) {
-    const items = Array.isArray(estimate?.items) ? estimate.items : [];
-    if (items.length === 0) return "";
+    const normalized = estimate?.stages?.length ? estimate : normalizeStagePricingEstimate(estimate);
+    const stages = Array.isArray(normalized?.stages) ? normalized.stages : [];
+    if (stages.length === 0) return "";
 
     return `
       <div class="design-pricing-table-wrap">
-        ${estimate?.summary ? `<p>${escapeHtml(estimate.summary)}</p>` : ""}
+        ${normalized?.summary ? `<p>${escapeHtml(normalized.summary)}</p>` : ""}
         <table class="design-pricing-table">
           <thead>
             <tr>
-              <th>Design</th>
+              <th>Stage</th>
+              <th>Item</th>
               <th>Low</th>
               <th>High</th>
               <th>Basis</th>
             </tr>
           </thead>
           <tbody>
-            ${items.map((item) => `
-              <tr>
-                <td>${escapeHtml(item.title || titleForDesignType(item.designType))}</td>
-                <td>${formatCurrency(item.low, item.currency || estimate.currency)}</td>
-                <td>${formatCurrency(item.high, item.currency || estimate.currency)}</td>
+            ${stages.map((item) => `
+              <tr class="design-pricing-stage-row">
+                <td colspan="2">
+                  <strong>${escapeHtml(item.title || item.stage || "Stage")}</strong>
+                </td>
+                <td>${formatCurrency(item.low, item.currency || normalized.currency)}</td>
+                <td>${formatCurrency(item.high, item.currency || normalized.currency)}</td>
                 <td>${escapeHtml(item.basis || "")}</td>
               </tr>
+              ${renderPricingStageItems(item, normalized.currency)}
             `).join("")}
           </tbody>
           <tfoot>
             <tr>
-              <th>Total</th>
-              <th>${formatCurrency(estimate.totalLow, estimate.currency)}</th>
-              <th>${formatCurrency(estimate.totalHigh, estimate.currency)}</th>
+              <th colspan="2">Total</th>
+              <th>${formatCurrency(normalized.totalLow, normalized.currency)}</th>
+              <th>${formatCurrency(normalized.totalHigh, normalized.currency)}</th>
               <th></th>
             </tr>
           </tfoot>
@@ -489,6 +499,21 @@
         </button>
       </div>
     `;
+  }
+
+  function renderPricingStageItems(stage, fallbackCurrency) {
+    const items = Array.isArray(stage?.items) ? stage.items : [];
+    if (items.length === 0) return "";
+
+    return items.map((item) => `
+      <tr class="design-pricing-item-row">
+        <td></td>
+        <td>${escapeHtml(item.title || titleForDesignType(item.designType))}</td>
+        <td>${formatCurrency(item.low, item.currency || fallbackCurrency)}</td>
+        <td>${formatCurrency(item.high, item.currency || fallbackCurrency)}</td>
+        <td>${escapeHtml(item.basis || "")}</td>
+      </tr>
+    `).join("");
   }
 
   function openDesignOutput(output) {
@@ -540,6 +565,97 @@
     designDocModal.classList.add("is-hidden");
   }
 
+  function openPrototypePaymentModal(product) {
+    const prototypePricing = designPricingCore().getPrototypePricing(product?.designCostEstimate);
+    if (!prototypePricing) return;
+
+    createPrototypePaymentModalIfNeeded();
+    paymentModalContent.innerHTML = `
+      <div class="prototype-payment-summary">
+        <p>Mock payment for the Prototype pricing estimate.</p>
+        <div class="prototype-payment-amount">
+          <span>Prototype estimate</span>
+          <strong>${formatCurrency(prototypePricing.low, prototypePricing.currency)} - ${formatCurrency(prototypePricing.high, prototypePricing.currency)}</strong>
+        </div>
+        ${renderPrototypePaymentItems(prototypePricing)}
+        <dl class="prototype-payment-fields">
+          <div>
+            <dt>Card</dt>
+            <dd>4242 4242 4242 4242</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>Mock authorization only</dd>
+          </div>
+        </dl>
+      </div>
+    `;
+
+    const confirmButton = document.getElementById("prototypePaymentConfirmButton");
+    if (confirmButton) confirmButton.onclick = () => completeDesignApproval(product);
+    paymentModal.classList.remove("is-hidden");
+    confirmButton?.focus();
+  }
+
+  function createPrototypePaymentModalIfNeeded() {
+    if (paymentModal) return;
+
+    document.body.insertAdjacentHTML("beforeend", `
+      <div id="prototypePaymentModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="prototypePaymentTitle">
+        <section class="modal-panel confirm-panel">
+          <div class="modal-header">
+            <div>
+              <span>Prototype</span>
+              <h3 id="prototypePaymentTitle">Pay pricing estimate</h3>
+            </div>
+            <button id="prototypePaymentCloseButton" class="icon-button" type="button" aria-label="Close payment window">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div id="prototypePaymentContent" class="confirm-message"></div>
+          <div class="modal-footer">
+            <button id="prototypePaymentCancelButton" class="secondary-button" type="button">Cancel</button>
+            <button id="prototypePaymentConfirmButton" class="primary-button" type="button">Pay mock estimate</button>
+          </div>
+        </section>
+      </div>
+    `);
+
+    paymentModal = document.getElementById("prototypePaymentModal");
+    paymentModalContent = document.getElementById("prototypePaymentContent");
+    paymentCloseButton = document.getElementById("prototypePaymentCloseButton");
+
+    paymentCloseButton.addEventListener("click", closePrototypePaymentModal);
+    document.getElementById("prototypePaymentCancelButton").addEventListener("click", closePrototypePaymentModal);
+    paymentModal.addEventListener("click", (event) => {
+      if (event.target === paymentModal) closePrototypePaymentModal();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && paymentModal && !paymentModal.classList.contains("is-hidden")) closePrototypePaymentModal();
+    });
+  }
+
+  function closePrototypePaymentModal() {
+    if (!paymentModal) return;
+    paymentModal.classList.add("is-hidden");
+  }
+
+  function renderPrototypePaymentItems(prototypePricing) {
+    const items = Array.isArray(prototypePricing?.items) ? prototypePricing.items : [];
+    if (items.length === 0) return "";
+
+    return `
+      <div class="prototype-payment-items">
+        ${items.map((item) => `
+          <div>
+            <span>${escapeHtml(item.title || titleForDesignType(item.designType))}</span>
+            <strong>${formatCurrency(item.low, item.currency || prototypePricing.currency)} - ${formatCurrency(item.high, item.currency || prototypePricing.currency)}</strong>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   function getLatestPrd(product) {
     return product?.prdOutputs?.[1] || product?.prdOutputs?.[0] || null;
   }
@@ -554,6 +670,92 @@
 
   function titleForDesignType(designType) {
     return DESIGN_TYPES.find((type) => type.key === designType)?.title || designType || "Design";
+  }
+
+  function normalizeStagePricingEstimate(estimate) {
+    return {
+      ...designPricingCore().buildStagePricingEstimate(estimate),
+      estimatedAt: new Date().toISOString()
+    };
+  }
+
+  function designPricingCore() {
+    return window.DesignPricingCore || fallbackDesignPricingCore();
+  }
+
+  function fallbackDesignPricingCore() {
+    const stages = [
+      ["prototype", "Prototype", 0.25, "First functional build, prototype validation, integration support, and early test readiness."],
+      ["evt", "EVT", 0.25, "Engineering validation units, core requirement testing, debug cycles, and engineering fixes."],
+      ["dvt", "DVT", 0.225, "Design validation units, reliability testing, compliance preparation, and design verification."],
+      ["pvt", "PVT", 0.175, "Pilot production validation, fixtures, process checks, quality gates, and yield readiness."],
+      ["mp", "MP", 0.1, "Mass production release support, supplier readiness, launch checks, and production handoff."]
+    ];
+    return {
+      buildStagePricingEstimate(sourceEstimate) {
+        const source = sourceEstimate && typeof sourceEstimate === "object" ? sourceEstimate : {};
+        const currency = typeof source.currency === "string" && source.currency ? source.currency : "USD";
+        const items = normalizeSourcePricingItems(source.items, currency);
+        const stageRows = stages.map((stage, index) => {
+          const stageItems = items.map((item) => {
+            const lowValues = distribute(item.low, stages);
+            const highValues = distribute(item.high, stages);
+            return {
+              designType: item.designType,
+              title: item.title,
+              low: lowValues[index],
+              high: highValues[index],
+              currency: item.currency,
+              basis: item.basis
+            };
+          });
+          return {
+            stage: stage[0],
+            title: stage[1],
+            low: stageItems.reduce((sum, item) => sum + item.low, 0),
+            high: stageItems.reduce((sum, item) => sum + item.high, 0),
+            currency,
+            basis: stage[3],
+            items: stageItems
+          };
+        });
+        return {
+          ...source,
+          summary: typeof source.summary === "string" && source.summary ? source.summary : "Pricing estimate by delivery stage.",
+          currency,
+          sourceItems: items,
+          stages: stageRows,
+          totalLow: stageRows.reduce((sum, item) => sum + item.low, 0),
+          totalHigh: stageRows.reduce((sum, item) => sum + item.high, 0)
+        };
+      },
+      getPrototypePricing(estimate) {
+        return estimate?.stages?.find((stage) => stage.stage === "prototype") || null;
+      }
+    };
+  }
+
+  function normalizeSourcePricingItems(items, fallbackCurrency) {
+    return (Array.isArray(items) ? items : []).map((item) => ({
+      designType: typeof item?.designType === "string" ? item.designType : "",
+      title: typeof item?.title === "string" ? item.title : titleForDesignType(item?.designType),
+      low: numeric(item?.low),
+      high: numeric(item?.high),
+      currency: typeof item?.currency === "string" && item.currency ? item.currency : fallbackCurrency,
+      basis: typeof item?.basis === "string" ? item.basis : ""
+    }));
+  }
+
+  function distribute(total, stages) {
+    const rounded = stages.map((stage) => Math.round(total * stage[2]));
+    const delta = Math.round(total) - rounded.reduce((sum, value) => sum + value, 0);
+    rounded[rounded.length - 1] += delta;
+    return rounded;
+  }
+
+  function numeric(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
   }
 
   function formatCurrency(value, currency = "USD") {

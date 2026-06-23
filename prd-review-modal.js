@@ -258,13 +258,10 @@
           outputFile: result.outputFile,
           generatedAt: new Date().toISOString(),
           content: result.prd || "",
+          source: stageIndex === 0 ? "generated_spec" : "generated_stage",
           comments: (prev && Array.isArray(prev.comments)) ? prev.comments : []
         };
         product.completed[stageIndex] = true;
-        // When PRD is generated from Spec (stage 0), also satisfy the PRD review stage so later stages unlock
-        if (stageIndex === 0) {
-          product.completed[1] = true;
-        }
         if (window.logActivity) window.logActivity(`${window.stages ? window.stages[stageIndex].name : 'Stage'} PRD generated at ${result.outputFile}`);
 
         if (window.stages && stageIndex < window.stages.length - 1) {

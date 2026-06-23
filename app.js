@@ -148,6 +148,7 @@ const specReviewResults = document.querySelector("#specReviewResults");
 const completionHint = document.querySelector("#completionHint");
 const inspectSpecButton = document.querySelector("#inspectSpecButton");
 const completeButton = document.querySelector("#completeButton");
+let openLocalPrdInput = null;
 const contextModal = document.querySelector("#contextModal");
 const modalStage = document.querySelector("#modalStage");
 const modalTitle = document.querySelector("#modalTitle");
@@ -285,9 +286,40 @@ function activeProduct() {
   return state.products.find((product) => product.id === state.selectedProductId) || null;
 }
 
+function prdReviewCore() {
+  return window.PrdReviewCore || {
+    isPrdReviewUnlocked(product, index) {
+      if (!product) return false;
+      if (index === 0 || index === 1) return true;
+      return Boolean(product.completed?.[index - 1]);
+    },
+    getPrdReviewSource(product) {
+      const reviewOutput = product?.prdOutputs?.[1];
+      if (reviewOutput?.content?.trim()) return { output: reviewOutput, sourceIndex: 1 };
+      const generatedOutput = product?.prdOutputs?.[0];
+      if (generatedOutput?.content?.trim()) return { output: generatedOutput, sourceIndex: 0 };
+      return { output: null, sourceIndex: null };
+    },
+    createLocalPrdOutput({ name, content }) {
+      return {
+        inputFile: name || "local-prd.md",
+        outputFile: name || "local-prd.md",
+        generatedAt: new Date().toISOString(),
+        content: content || "",
+        source: "local_file",
+        comments: []
+      };
+    }
+  };
+}
+
+function getActivePrdReviewSource(product = activeProduct()) {
+  return prdReviewCore().getPrdReviewSource(product);
+}
+
 function isUnlocked(index) {
   const product = activeProduct();
-  return Boolean(product) && (index === 0 || product.completed[index - 1]);
+  return prdReviewCore().isPrdReviewUnlocked(product, index);
 }
 
 function statusFor(index) {
@@ -388,7 +420,8 @@ function renderDetails() {
     const oldProceed = document.getElementById('proceedSection');
     if (oldProceed) oldProceed.remove();
 
-    const prd = product.prdOutputs && product.prdOutputs[0];
+    const prdSource = getActivePrdReviewSource(product);
+    const prd = prdSource.output;
     if (prd && prd.content) {
       const rendered = window.renderMarkdown ? window.renderMarkdown(prd.content) : escapeHtml(prd.content);
       checklist.innerHTML = `
@@ -443,8 +476,23 @@ function renderDetails() {
         }
       }
     } else {
-      checklist.innerHTML = '<li class="check-item"><div class="prd-drafted-content"><em>No PRD generated yet. Generate from the Spec stage.</em></div></li>';
+      checklist.innerHTML = `
+        <li class="check-item">
+          <div class="prd-empty-state">
+            <strong>No PRD loaded</strong>
+            <span>Generate a PRD from the Spec stage, or open a local PRD file to review now.</span>
+            <button id="openLocalPrdButton" class="secondary-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+              Open local PRD file
+            </button>
+          </div>
+        </li>
+      `;
       checklistCount.textContent = '';
+      const openLocalPrdButton = document.getElementById("openLocalPrdButton");
+      if (openLocalPrdButton) {
+        openLocalPrdButton.addEventListener("click", openLocalPrdFilePicker);
+      }
     }
   } else if (selectedIndex === 2 && window.FeasibilityAnalysis) {
     const oldUpdate = document.getElementById('updatePrdSection');
@@ -536,10 +584,10 @@ function renderDetails() {
   } else if (specInspectionError) {
     completionHint.textContent = "Spec inspection failed. See inspection results.";
   } else if (selectedIndex === 1) {
-    const prd = product.prdOutputs && product.prdOutputs[0];
+    const prd = getActivePrdReviewSource(product).output;
     completionHint.textContent = (prd && prd.content)
       ? "PRD content shown in the step checklist area."
-      : "PRD will be shown here after generation from Spec.";
+      : "Open a local PRD file, or generate one from Spec.";
   } else if (!hasProductName) {
     completionHint.textContent = "Enter a product name before completing this stage.";
   } else if (!hasProductType) {
@@ -1065,7 +1113,7 @@ function highlightImageComment(container, comment) {
 
 function getCurrentPrd() {
   const product = activeProduct();
-  return product && product.prdOutputs ? product.prdOutputs[0] : null;
+  return getActivePrdReviewSource(product).output;
 }
 
 function handlePrdRightClick(e) {
@@ -1109,7 +1157,7 @@ function handlePrdRightClick(e) {
   openAddPrdCommentUI(quote, ctype, (commentText) => {
     const product = activeProduct();
     if (!product) return;
-    const prd = product.prdOutputs && product.prdOutputs[0];
+    const prd = getActivePrdReviewSource(product).output;
     if (!prd) return;
     if (!Array.isArray(prd.comments)) prd.comments = [];
     prd.comments.push({
@@ -1231,7 +1279,7 @@ function showPrdComment(comment, anchorEl) {
     const val = ta.value.trim();
     if (!val) return;
     const product = activeProduct();
-    const prd = product && product.prdOutputs && product.prdOutputs[0];
+    const prd = getActivePrdReviewSource(product).output;
     if (prd && Array.isArray(prd.comments)) {
       const target = prd.comments.find((x) => x.id === comment.id);
       if (target) target.comment = val;
@@ -1243,7 +1291,7 @@ function showPrdComment(comment, anchorEl) {
 
   bd.querySelector("#prdCommentDelete").onclick = () => {
     const product = activeProduct();
-    const prd = product && product.prdOutputs && product.prdOutputs[0];
+    const prd = getActivePrdReviewSource(product).output;
     if (prd && Array.isArray(prd.comments)) {
       prd.comments = prd.comments.filter((x) => x.id !== comment.id);
     }
@@ -1364,7 +1412,7 @@ function openUpdatePrdPopup(prd) {
 function proceedToFeasibility() {
   const product = activeProduct();
   if (!product) return;
-  const prd = product.prdOutputs && product.prdOutputs[0];
+  const prd = getActivePrdReviewSource(product).output;
   if (!prd || !prd.content) return;
 
   // Unblock Feasibility Analysis (complete PRD review stage)
@@ -1372,10 +1420,10 @@ function proceedToFeasibility() {
 
   // Pass the latest PRD to Feasibility Analysis (store in prdOutputs[1])
   if (!product.prdOutputs) product.prdOutputs = [];
-  const latestPrd = product.prdOutputs[0];
   product.prdOutputs[1] = {
-    content: latestPrd.content,
-    outputFile: latestPrd.outputFile || '',
+    ...prd,
+    content: prd.content,
+    outputFile: prd.outputFile || '',
     generatedAt: new Date().toISOString(),
     source: 'PRD Review (updated with comments)'
   };
@@ -1385,6 +1433,46 @@ function proceedToFeasibility() {
   // Advance to next stage
   selectedIndex = 2;
 
+  persist();
+  render();
+}
+
+function openLocalPrdFilePicker() {
+  if (!openLocalPrdInput) {
+    openLocalPrdInput = document.createElement("input");
+    openLocalPrdInput.type = "file";
+    openLocalPrdInput.accept = ".md,.markdown,.txt,text/markdown,text/plain";
+    openLocalPrdInput.className = "is-hidden";
+    openLocalPrdInput.addEventListener("change", importLocalPrdFile);
+    document.body.appendChild(openLocalPrdInput);
+  }
+
+  openLocalPrdInput.value = "";
+  openLocalPrdInput.click();
+}
+
+async function importLocalPrdFile(event) {
+  const product = activeProduct();
+  const file = event.target.files && event.target.files[0];
+  if (!product || !file) return;
+
+  const content = await file.text();
+  if (!content.trim()) {
+    completionHint.textContent = "The selected PRD file is empty.";
+    return;
+  }
+
+  if (!product.prdOutputs) product.prdOutputs = [];
+  const previousReviewPrd = product.prdOutputs[1];
+  product.prdOutputs[1] = {
+    ...prdReviewCore().createLocalPrdOutput({
+      name: file.name,
+      content
+    }),
+    comments: Array.isArray(previousReviewPrd?.comments) ? previousReviewPrd.comments : []
+  };
+  product.completed[1] = false;
+  logActivity(`Local PRD opened from ${file.name}`);
   persist();
   render();
 }
@@ -1551,6 +1639,7 @@ function normalizePrdOutput(output) {
     outputFile: typeof output.outputFile === "string" ? output.outputFile : "",
     generatedAt: typeof output.generatedAt === "string" ? output.generatedAt : "",
     content: typeof output.content === "string" ? output.content : (typeof output.prd === "string" ? output.prd : ""),
+    source: typeof output.source === "string" ? output.source : "",
     comments: Array.isArray(output.comments)
       ? output.comments.map((c) => ({
           id: String(c.id || ("c_" + Date.now())),
@@ -1616,6 +1705,26 @@ function normalizeDesignCostEstimate(estimate) {
           basis: typeof item.basis === "string" ? item.basis : ""
         }))
       : [],
+    stages: Array.isArray(estimate.stages)
+      ? estimate.stages.map((item) => ({
+          stage: typeof item.stage === "string" ? item.stage : "",
+          title: typeof item.title === "string" ? item.title : "",
+          low: Number.isFinite(Number(item.low)) ? Number(item.low) : 0,
+          high: Number.isFinite(Number(item.high)) ? Number(item.high) : 0,
+          currency: typeof item.currency === "string" ? item.currency : "USD",
+          basis: typeof item.basis === "string" ? item.basis : "",
+          items: Array.isArray(item.items)
+            ? item.items.map((subitem) => ({
+                designType: typeof subitem.designType === "string" ? subitem.designType : "",
+                title: typeof subitem.title === "string" ? subitem.title : "",
+                low: Number.isFinite(Number(subitem.low)) ? Number(subitem.low) : 0,
+                high: Number.isFinite(Number(subitem.high)) ? Number(subitem.high) : 0,
+                currency: typeof subitem.currency === "string" ? subitem.currency : "USD",
+                basis: typeof subitem.basis === "string" ? subitem.basis : ""
+              }))
+            : []
+        }))
+      : [],
     totalLow: Number.isFinite(Number(estimate.totalLow)) ? Number(estimate.totalLow) : 0,
     totalHigh: Number.isFinite(Number(estimate.totalHigh)) ? Number(estimate.totalHigh) : 0,
     currency: typeof estimate.currency === "string" ? estimate.currency : "USD"
@@ -1657,7 +1766,7 @@ function getDocumentedCount(stageIndex) {
   return stage.checklist.reduce((count, item, index) => {
     // For PRD review first step, count as documented if the PRD was generated from spec (location or content)
     if (stageIndex === 1 && index === 0) {
-      const prd = product.prdOutputs && product.prdOutputs[0];
+      const prd = getActivePrdReviewSource(product).output;
       return count + (prd && (prd.content || prd.outputFile) ? 1 : 0);
     }
 
