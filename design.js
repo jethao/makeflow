@@ -11,9 +11,6 @@
   let designDocTitle = null;
   let designDocContent = null;
   let designDocCloseButton = null;
-  let paymentModal = null;
-  let paymentModalContent = null;
-  let paymentCloseButton = null;
   let isGeneratingDesigns = false;
   let isEstimatingPricing = false;
 
@@ -219,7 +216,6 @@
     product.completed[3] = true;
     app().logActivity("Prototype pricing payment mocked and design pricing approved");
     app().persist();
-    closePrototypePaymentModal();
     app().render();
   }
 
@@ -568,92 +564,14 @@
   function openPrototypePaymentModal(product) {
     const prototypePricing = designPricingCore().getPrototypePricing(product?.designCostEstimate);
     if (!prototypePricing) return;
-
-    createPrototypePaymentModalIfNeeded();
-    paymentModalContent.innerHTML = `
-      <div class="prototype-payment-summary">
-        <p>Mock payment for the Prototype pricing estimate.</p>
-        <div class="prototype-payment-amount">
-          <span>Prototype estimate</span>
-          <strong>${formatCurrency(prototypePricing.low, prototypePricing.currency)} - ${formatCurrency(prototypePricing.high, prototypePricing.currency)}</strong>
-        </div>
-        ${renderPrototypePaymentItems(prototypePricing)}
-        <dl class="prototype-payment-fields">
-          <div>
-            <dt>Card</dt>
-            <dd>4242 4242 4242 4242</dd>
-          </div>
-          <div>
-            <dt>Status</dt>
-            <dd>Mock authorization only</dd>
-          </div>
-        </dl>
-      </div>
-    `;
-
-    const confirmButton = document.getElementById("prototypePaymentConfirmButton");
-    if (confirmButton) confirmButton.onclick = () => completeDesignApproval(product);
-    paymentModal.classList.remove("is-hidden");
-    confirmButton?.focus();
-  }
-
-  function createPrototypePaymentModalIfNeeded() {
-    if (paymentModal) return;
-
-    document.body.insertAdjacentHTML("beforeend", `
-      <div id="prototypePaymentModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="prototypePaymentTitle">
-        <section class="modal-panel confirm-panel">
-          <div class="modal-header">
-            <div>
-              <span>Prototype</span>
-              <h3 id="prototypePaymentTitle">Pay pricing estimate</h3>
-            </div>
-            <button id="prototypePaymentCloseButton" class="icon-button" type="button" aria-label="Close payment window">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
-          <div id="prototypePaymentContent" class="confirm-message"></div>
-          <div class="modal-footer">
-            <button id="prototypePaymentCancelButton" class="secondary-button" type="button">Cancel</button>
-            <button id="prototypePaymentConfirmButton" class="primary-button" type="button">Pay mock estimate</button>
-          </div>
-        </section>
-      </div>
-    `);
-
-    paymentModal = document.getElementById("prototypePaymentModal");
-    paymentModalContent = document.getElementById("prototypePaymentContent");
-    paymentCloseButton = document.getElementById("prototypePaymentCloseButton");
-
-    paymentCloseButton.addEventListener("click", closePrototypePaymentModal);
-    document.getElementById("prototypePaymentCancelButton").addEventListener("click", closePrototypePaymentModal);
-    paymentModal.addEventListener("click", (event) => {
-      if (event.target === paymentModal) closePrototypePaymentModal();
+    if (!window.PrototypeStage?.openPaymentModal) return;
+    window.PrototypeStage.openPaymentModal({
+      prototypePricing,
+      formatCurrency,
+      titleForDesignType,
+      escapeHtml,
+      onConfirm: () => completeDesignApproval(product)
     });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && paymentModal && !paymentModal.classList.contains("is-hidden")) closePrototypePaymentModal();
-    });
-  }
-
-  function closePrototypePaymentModal() {
-    if (!paymentModal) return;
-    paymentModal.classList.add("is-hidden");
-  }
-
-  function renderPrototypePaymentItems(prototypePricing) {
-    const items = Array.isArray(prototypePricing?.items) ? prototypePricing.items : [];
-    if (items.length === 0) return "";
-
-    return `
-      <div class="prototype-payment-items">
-        ${items.map((item) => `
-          <div>
-            <span>${escapeHtml(item.title || titleForDesignType(item.designType))}</span>
-            <strong>${formatCurrency(item.low, item.currency || prototypePricing.currency)} - ${formatCurrency(item.high, item.currency || prototypePricing.currency)}</strong>
-          </div>
-        `).join("")}
-      </div>
-    `;
   }
 
   function getLatestPrd(product) {
