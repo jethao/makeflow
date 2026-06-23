@@ -522,6 +522,20 @@ function renderDetails() {
       checklist,
       checklistCount
     });
+  } else if (selectedIndex === 4 && window.PrototypeStage) {
+    const oldUpdate = document.getElementById('updatePrdSection');
+    if (oldUpdate) oldUpdate.remove();
+    const oldProceed = document.getElementById('proceedSection');
+    if (oldProceed) oldProceed.remove();
+    window.PrototypeStage.renderStage(product, {
+      productRows,
+      checklistNextButton,
+      heading,
+      actionRow,
+      specWorkbench,
+      checklist,
+      checklistCount
+    });
   } else {
     const oldUpdate = document.getElementById('updatePrdSection');
     if (oldUpdate) oldUpdate.remove();
