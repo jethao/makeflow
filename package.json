@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check app.js && node --check spec.js && node --check prd-review-modal.js && node --check feasibility.js && node --check prototype.js && node --check EVT.js && node --check design.js && node --check server.js && node --test feasibility-core.test.js prd-review-core.test.js design-pricing-core.test.js prototype-modal.test.js EVT-modal.test.js"
+    "check": "node --check app.js && node --check spec.js && node --check prd-review-modal.js && node --check feasibility.js && node --check prototype.js && node --check EVT.js && node --check DVT.js && node --check PVT.js && node --check design.js && node --check server.js && node --test feasibility-core.test.js prd-review-core.test.js design-pricing-core.test.js prototype-modal.test.js EVT-modal.test.js DVT-modal.test.js PVT-modal.test.js"
   }
 }
