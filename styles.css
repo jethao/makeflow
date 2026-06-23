@@ -1572,6 +1572,274 @@ svg {
   font-weight: 750;
 }
 
+.evt-stage {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.evt-stage p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.evt-stage-estimate,
+.evt-dvt-estimate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.evt-dvt-estimate {
+  border-color: rgba(21, 91, 216, 0.22);
+  background: var(--blue-soft);
+}
+
+.evt-stage-estimate div,
+.evt-dvt-estimate div {
+  display: grid;
+  gap: 4px;
+}
+
+.evt-stage-estimate span,
+.evt-dvt-estimate span,
+.evt-payment-amount span,
+.evt-payment-fields dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.evt-stage-estimate strong,
+.evt-dvt-estimate strong,
+.evt-payment-amount strong {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.evt-dvt-estimate .primary-button {
+  min-width: 132px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.evt-progress-panel,
+.evt-test-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.evt-progress-panel h4,
+.evt-test-panel h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.evt-progress-list {
+  display: grid;
+  gap: 10px;
+}
+
+.evt-progress-row {
+  display: grid;
+  grid-template-columns: 44px minmax(120px, 1fr) 44px;
+  gap: 10px;
+  align-items: center;
+}
+
+.evt-progress-row > span,
+.evt-progress-row strong {
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.evt-progress-row strong {
+  color: var(--muted);
+  text-align: right;
+}
+
+.evt-progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.evt-progress-track span {
+  display: block;
+  height: 100%;
+  margin: 0;
+  border-radius: inherit;
+  background: var(--blue);
+}
+
+.evt-test-layout {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.evt-test-pie {
+  width: 132px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 12px rgba(255, 255, 255, 0.55);
+}
+
+.evt-test-legend {
+  display: grid;
+  gap: 8px;
+}
+
+.evt-test-legend div {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.evt-test-legend span {
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  border-radius: 50%;
+}
+
+.evt-test-legend strong,
+.evt-test-legend em {
+  font-size: 13px;
+  font-style: normal;
+}
+
+.evt-test-legend em {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.evt-factory-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.evt-factory-card .section-heading h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.evt-factory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.evt-factory-grid div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.evt-factory-grid span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.evt-factory-grid strong {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.evt-factory-grid em {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.evt-payment-summary {
+  display: grid;
+  gap: 14px;
+  text-align: left;
+}
+
+.evt-payment-summary p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.evt-payment-amount {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.evt-payment-fields,
+.evt-payment-items {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.evt-payment-items div,
+.evt-payment-fields div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.evt-payment-items div {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.evt-payment-fields div {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.evt-payment-items span,
+.evt-payment-items strong,
+.evt-payment-fields dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .design-prd-panel {
   width: min(920px, 100%);
   max-height: calc(100vh - 48px);
