@@ -3,6 +3,14 @@
   let skuOrderModalContent = null;
   let skuOrderCloseButton = null;
 
+  const MOCK_FACTORY_ISSUES = [
+    { title: "Outgoing QA sampling backlog", owner: "Quality", status: "Extra inspector assigned" },
+    { title: "Packing line takt slip", owner: "Operations", status: "Station timing review" },
+    { title: "Second shift training gap", owner: "Line lead", status: "Certification in progress" },
+    { title: "Carton corner crush", owner: "Packaging", status: "Drop sample review" },
+    { title: "Regional label mix risk", owner: "Compliance", status: "Scan gate added" }
+  ];
+
   function renderStage(product, elements) {
     const mpPricing = getStagePricing(product, "mp");
 
@@ -64,6 +72,17 @@
             <span>Capacity plan</span>
             <strong>4.8k units / week</strong>
             <em>Second shift staffing, spare fixtures, and packing line takt are ready for launch volume.</em>
+          </div>
+          <div class="mp-factory-issues-card">
+            <span>Top 5 factory issues</span>
+            <ol class="mp-factory-issues">
+              ${MOCK_FACTORY_ISSUES.map((issue) => `
+                <li class="mp-factory-issue">
+                  <strong>${defaultEscapeHtml(issue.title)}</strong>
+                  <em>${defaultEscapeHtml(issue.owner)} - ${defaultEscapeHtml(issue.status)}</em>
+                </li>
+              `).join("")}
+            </ol>
           </div>
         </div>
         <div class="mp-sku-panel">

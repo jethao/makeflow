@@ -18,6 +18,14 @@
     { label: "Not run", value: 12, color: "#8791a1" }
   ];
 
+  const MOCK_FACTORY_ISSUES = [
+    { title: "Fixture repeatability drift", owner: "Manufacturing", status: "Containment active" },
+    { title: "Battery door flash", owner: "Tooling", status: "Mold polish queued" },
+    { title: "Antenna solder voids", owner: "SMT", status: "Profile tuning" },
+    { title: "Thermal pad placement", owner: "Process", status: "Work instruction update" },
+    { title: "Label adhesion variance", owner: "Quality", status: "Material sample review" }
+  ];
+
   function renderStage(product, elements) {
     const evtPricing = getStagePricing(product, "evt");
     const dvtPricing = getStagePricing(product, "dvt");
@@ -213,6 +221,17 @@
             <span>Manufacture schedule</span>
             <strong>Pilot line: Jul 8</strong>
             <em>Fixture calibration Jul 5, EVT build Jul 8-12, validation review Jul 15.</em>
+          </div>
+          <div class="evt-factory-issues-card">
+            <span>Top 5 factory issues</span>
+            <ol class="evt-factory-issues">
+              ${MOCK_FACTORY_ISSUES.map((issue) => `
+                <li class="evt-factory-issue">
+                  <strong>${defaultEscapeHtml(issue.title)}</strong>
+                  <em>${defaultEscapeHtml(issue.owner)} - ${defaultEscapeHtml(issue.status)}</em>
+                </li>
+              `).join("")}
+            </ol>
           </div>
         </div>
       </section>

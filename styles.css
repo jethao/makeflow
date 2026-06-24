@@ -1907,6 +1907,77 @@ svg {
   line-height: 1.4;
 }
 
+.evt-factory-grid .evt-factory-issues-card,
+.dvt-factory-grid .dvt-factory-issues-card,
+.pvt-factory-grid .pvt-factory-issues-card,
+.mp-factory-grid .mp-factory-issues-card {
+  grid-column: 1 / -1;
+}
+
+.evt-factory-issues,
+.dvt-factory-issues,
+.pvt-factory-issues,
+.mp-factory-issues {
+  counter-reset: factory-issue;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evt-factory-issue,
+.dvt-factory-issue,
+.pvt-factory-issue,
+.mp-factory-issue {
+  counter-increment: factory-issue;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 3px 8px;
+  align-items: start;
+}
+
+.evt-factory-issue::before,
+.dvt-factory-issue::before,
+.pvt-factory-issue::before,
+.mp-factory-issue::before {
+  content: counter(factory-issue);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.evt-factory-issue strong,
+.evt-factory-issue em,
+.dvt-factory-issue strong,
+.dvt-factory-issue em,
+.pvt-factory-issue strong,
+.pvt-factory-issue em,
+.mp-factory-issue strong,
+.mp-factory-issue em {
+  min-width: 0;
+}
+
+.evt-factory-issue strong,
+.dvt-factory-issue strong,
+.pvt-factory-issue strong,
+.mp-factory-issue strong {
+  font-size: 14px;
+}
+
+.evt-factory-issue em,
+.dvt-factory-issue em,
+.pvt-factory-issue em,
+.mp-factory-issue em {
+  grid-column: 2;
+}
+
 .mp-sku-panel {
   display: grid;
   gap: 8px;

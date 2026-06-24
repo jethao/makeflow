@@ -62,6 +62,27 @@ test("PVT stage render includes factory readiness and production ramp card", () 
   assert.match(elements.checklist.innerHTML, /Production ramp/);
 });
 
+test("PVT factory readiness renders top 5 factory issues", () => {
+  const context = createBrowserContext();
+  vm.runInNewContext(readFileSync("PVT.js", "utf8"), context);
+
+  const elements = createStageElements();
+
+  context.window.PVTStage.renderStage({}, elements);
+
+  assert.match(elements.checklist.innerHTML, /Top 5 factory issues/);
+  for (const issue of [
+    "Final fixture GRR drift",
+    "Cosmetic scratch escape",
+    "Packout weight variance",
+    "Golden sample limit mismatch",
+    "Line balance bottleneck"
+  ]) {
+    assert.match(elements.checklist.innerHTML, new RegExp(issue));
+  }
+  assert.equal(elements.checklist.innerHTML.match(/class="pvt-factory-issue"/g)?.length, 5);
+});
+
 test("PVT stage render includes supplier readiness card", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("PVT.js", "utf8"), context);

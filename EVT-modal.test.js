@@ -62,6 +62,27 @@ test("EVT stage render includes factory yield and manufacture schedule card", ()
   assert.match(elements.checklist.innerHTML, /Manufacture schedule/);
 });
 
+test("EVT factory readiness renders top 5 factory issues", () => {
+  const context = createBrowserContext();
+  vm.runInNewContext(readFileSync("EVT.js", "utf8"), context);
+
+  const elements = createStageElements();
+
+  context.window.EVTStage.renderStage({}, elements);
+
+  assert.match(elements.checklist.innerHTML, /Top 5 factory issues/);
+  for (const issue of [
+    "Fixture repeatability drift",
+    "Battery door flash",
+    "Antenna solder voids",
+    "Thermal pad placement",
+    "Label adhesion variance"
+  ]) {
+    assert.match(elements.checklist.innerHTML, new RegExp(issue));
+  }
+  assert.equal(elements.checklist.innerHTML.match(/class="evt-factory-issue"/g)?.length, 5);
+});
+
 test("EVT stage render includes DVT estimate approval", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("EVT.js", "utf8"), context);

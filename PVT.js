@@ -18,6 +18,14 @@
     { label: "Not run", value: 7, color: "#8791a1" }
   ];
 
+  const MOCK_FACTORY_ISSUES = [
+    { title: "Final fixture GRR drift", owner: "Manufacturing", status: "Gauge study repeat" },
+    { title: "Cosmetic scratch escape", owner: "Quality", status: "Sampling tightened" },
+    { title: "Packout weight variance", owner: "Line", status: "Scale check queued" },
+    { title: "Golden sample limit mismatch", owner: "Engineering", status: "Limit review" },
+    { title: "Line balance bottleneck", owner: "Operations", status: "Station split trial" }
+  ];
+
   function renderStage(product, elements) {
     const pvtPricing = getStagePricing(product, "pvt");
     const mpPricing = getStagePricing(product, "mp");
@@ -216,6 +224,17 @@
             <span>Production ramp</span>
             <strong>MP gate: Sep 3</strong>
             <em>Line balance Sep 1, first article Sep 2, mass production release review Sep 3.</em>
+          </div>
+          <div class="pvt-factory-issues-card">
+            <span>Top 5 factory issues</span>
+            <ol class="pvt-factory-issues">
+              ${MOCK_FACTORY_ISSUES.map((issue) => `
+                <li class="pvt-factory-issue">
+                  <strong>${defaultEscapeHtml(issue.title)}</strong>
+                  <em>${defaultEscapeHtml(issue.owner)} - ${defaultEscapeHtml(issue.status)}</em>
+                </li>
+              `).join("")}
+            </ol>
           </div>
         </div>
       </section>

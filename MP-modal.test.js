@@ -84,6 +84,27 @@ test("MP stage render includes factory ramp and launch readiness cards", () => {
   assert.match(elements.checklist.innerHTML, /Support handoff/);
 });
 
+test("MP factory ramp renders top 5 factory issues", () => {
+  const context = createBrowserContext();
+  vm.runInNewContext(readFileSync("MP.js", "utf8"), context);
+
+  const elements = createStageElements();
+
+  context.window.MPStage.renderStage({}, elements);
+
+  assert.match(elements.checklist.innerHTML, /Top 5 factory issues/);
+  for (const issue of [
+    "Outgoing QA sampling backlog",
+    "Packing line takt slip",
+    "Second shift training gap",
+    "Carton corner crush",
+    "Regional label mix risk"
+  ]) {
+    assert.match(elements.checklist.innerHTML, new RegExp(issue));
+  }
+  assert.equal(elements.checklist.innerHTML.match(/class="mp-factory-issue"/g)?.length, 5);
+});
+
 test("MP factory ramp card includes mock SKU progress and queued SKUs", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("MP.js", "utf8"), context);

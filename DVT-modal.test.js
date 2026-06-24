@@ -78,6 +78,27 @@ test("DVT stage render includes factory card before compliance readiness", () =>
   );
 });
 
+test("DVT factory readiness renders top 5 factory issues", () => {
+  const context = createBrowserContext();
+  vm.runInNewContext(readFileSync("DVT.js", "utf8"), context);
+
+  const elements = createStageElements();
+
+  context.window.DVTStage.renderStage({}, elements);
+
+  assert.match(elements.checklist.innerHTML, /Top 5 factory issues/);
+  for (const issue of [
+    "RF shield fit gap",
+    "Enclosure tolerance stack",
+    "Burn-in fixture dropout",
+    "Speaker mesh alignment",
+    "Torque driver calibration"
+  ]) {
+    assert.match(elements.checklist.innerHTML, new RegExp(issue));
+  }
+  assert.equal(elements.checklist.innerHTML.match(/class="dvt-factory-issue"/g)?.length, 5);
+});
+
 test("DVT stage render does not include a separate certification requirements card", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("DVT.js", "utf8"), context);
