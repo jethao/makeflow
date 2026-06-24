@@ -382,52 +382,6 @@ function renderPreservingPrdReviewScroll() {
   }, scheduleRestore);
 }
 
-function keepPrdContextAfterComment(commentId, fallbackQuote) {
-  const prdBox = document.querySelector(".prd-drafted-content");
-  if (!prdBox) return;
-
-  const highlight = commentId
-    ? prdBox.querySelector(`[data-comment-id="${escapeCssIdentifier(commentId)}"]`)
-    : null;
-  const target = highlight || findPrdTextContext(prdBox, fallbackQuote);
-  if (!target) return;
-
-  const targetTop = target.offsetTop || 0;
-  const contextOffset = Math.max(24, Math.round(prdBox.clientHeight * 0.28));
-  prdBox.scrollTop = Math.max(0, targetTop - contextOffset);
-}
-
-function findPrdTextContext(container, quote) {
-  const search = String(quote || "").trim().toLowerCase();
-  if (!container || !search) return null;
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
-  let node;
-  while ((node = walker.nextNode())) {
-    if ((node.nodeValue || "").toLowerCase().includes(search)) {
-      return node.parentElement;
-    }
-  }
-  return null;
-}
-
-function escapeCssIdentifier(value) {
-  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(String(value));
-  return String(value).replace(/["\\]/g, "\\$&");
-}
-
-function schedulePrdContextRestore(commentId, fallbackQuote) {
-  const restore = () => keepPrdContextAfterComment(commentId, fallbackQuote);
-  restore();
-  if (typeof window.requestAnimationFrame === "function") {
-    window.requestAnimationFrame(() => {
-      restore();
-      window.requestAnimationFrame(restore);
-    });
-  } else {
-    setTimeout(restore, 0);
-  }
-}
-
 function statusFor(index) {
   const product = activeProduct();
   if (!product) return "locked";
@@ -1361,7 +1315,6 @@ function handlePrdRightClick(e) {
     });
     persist();
     renderPreservingPrdReviewScroll();
-    schedulePrdContextRestore(commentId, quote);
   });
 }
 
@@ -1479,7 +1432,6 @@ function showPrdComment(comment, anchorEl) {
     close();
     persist();
     renderPreservingPrdReviewScroll();
-    schedulePrdContextRestore(comment.id, comment.quote);
   };
 
   bd.querySelector("#prdCommentDelete").onclick = () => {
@@ -1491,7 +1443,6 @@ function showPrdComment(comment, anchorEl) {
     close();
     persist();
     renderPreservingPrdReviewScroll();
-    schedulePrdContextRestore(null, comment.quote);
   };
 
   setTimeout(() => ta.focus(), 10);
