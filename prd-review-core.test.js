@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import {
   getPrdReviewSource,
   isPrdReviewUnlocked,
-  createLocalPrdOutput
+  createLocalPrdOutput,
+  preserveScrollPositions,
+  preserveScrollPositionBySelector
 } from "./prd-review-core.js";
 
 test("PRD review is unlocked before Spec is complete", () => {
@@ -61,4 +63,54 @@ test("local PRD file content is stored as a PRD review output", () => {
   assert.equal(output.source, "local_file");
   assert.deepEqual(output.comments, []);
   assert.match(output.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("preserveScrollPositions restores scroll after a render callback", () => {
+  const scrollArea = { scrollTop: 640, scrollLeft: 12 };
+  let scheduledRestore = null;
+
+  const result = preserveScrollPositions([scrollArea], () => {
+    scrollArea.scrollTop = 0;
+    scrollArea.scrollLeft = 0;
+    return "saved";
+  }, (restore) => {
+    scheduledRestore = restore;
+  });
+
+  assert.equal(result, "saved");
+  assert.equal(scrollArea.scrollTop, 640);
+  assert.equal(scrollArea.scrollLeft, 12);
+
+  scrollArea.scrollTop = 0;
+  scrollArea.scrollLeft = 0;
+  scheduledRestore();
+
+  assert.equal(scrollArea.scrollTop, 640);
+  assert.equal(scrollArea.scrollLeft, 12);
+});
+
+test("preserveScrollPositionBySelector restores scroll on replaced content", () => {
+  const oldPanel = { scrollTop: 520, scrollLeft: 0 };
+  const newPanel = { scrollTop: 0, scrollLeft: 0 };
+  const root = {
+    current: oldPanel,
+    querySelector(selector) {
+      assert.equal(selector, ".prd-drafted-content");
+      return this.current;
+    }
+  };
+  let scheduledRestore = null;
+
+  preserveScrollPositionBySelector(".prd-drafted-content", root, () => {
+    root.current = newPanel;
+  }, (restore) => {
+    scheduledRestore = restore;
+  });
+
+  assert.equal(newPanel.scrollTop, 520);
+
+  newPanel.scrollTop = 0;
+  scheduledRestore();
+
+  assert.equal(newPanel.scrollTop, 520);
 });

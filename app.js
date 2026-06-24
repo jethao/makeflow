@@ -309,6 +309,42 @@ function prdReviewCore() {
         source: "local_file",
         comments: []
       };
+    },
+    preserveScrollPositions(targets, action, scheduleRestore) {
+      const snapshots = Array.from(targets || [])
+        .filter((target, index, list) => target && list.indexOf(target) === index)
+        .filter((target) => typeof target.scrollTop === "number" || typeof target.scrollLeft === "number")
+        .map((target) => ({
+          target,
+          top: Number(target.scrollTop) || 0,
+          left: Number(target.scrollLeft) || 0
+        }));
+      const result = typeof action === "function" ? action() : undefined;
+      const restore = () => {
+        snapshots.forEach(({ target, top, left }) => {
+          if (typeof target.scrollTop === "number") target.scrollTop = top;
+          if (typeof target.scrollLeft === "number") target.scrollLeft = left;
+        });
+      };
+      restore();
+      if (typeof scheduleRestore === "function") scheduleRestore(restore);
+      return result;
+    },
+    preserveScrollPositionBySelector(selector, root, action, scheduleRestore) {
+      const queryRoot = root && typeof root.querySelector === "function" ? root : null;
+      const before = queryRoot ? queryRoot.querySelector(selector) : null;
+      const top = before && typeof before.scrollTop === "number" ? before.scrollTop : 0;
+      const left = before && typeof before.scrollLeft === "number" ? before.scrollLeft : 0;
+      const result = typeof action === "function" ? action() : undefined;
+      const restore = () => {
+        const after = queryRoot ? queryRoot.querySelector(selector) : null;
+        if (!after) return;
+        if (typeof after.scrollTop === "number") after.scrollTop = top;
+        if (typeof after.scrollLeft === "number") after.scrollLeft = left;
+      };
+      restore();
+      if (typeof scheduleRestore === "function") scheduleRestore(restore);
+      return result;
     }
   };
 }
@@ -320,6 +356,30 @@ function getActivePrdReviewSource(product = activeProduct()) {
 function isUnlocked(index) {
   const product = activeProduct();
   return prdReviewCore().isPrdReviewUnlocked(product, index);
+}
+
+function renderPreservingPrdReviewScroll() {
+  const targets = [
+    document.scrollingElement,
+    document.documentElement,
+    document.body,
+    workflowView,
+    checklist?.parentElement,
+    checklist
+  ];
+  const scheduleRestore = (restore) => {
+    restore();
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => {
+        restore();
+        window.requestAnimationFrame(restore);
+      });
+    }
+  };
+
+  return prdReviewCore().preserveScrollPositionBySelector(".prd-drafted-content", document, () => {
+    return prdReviewCore().preserveScrollPositions(targets, render, scheduleRestore);
+  }, scheduleRestore);
 }
 
 function statusFor(index) {
@@ -1244,8 +1304,9 @@ function handlePrdRightClick(e) {
     const prd = getActivePrdReviewSource(product).output;
     if (!prd) return;
     if (!Array.isArray(prd.comments)) prd.comments = [];
+    const commentId = "c_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
     prd.comments.push({
-      id: "c_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9),
+      id: commentId,
       quote,
       comment: commentText,
       createdAt: new Date().toISOString(),
@@ -1253,7 +1314,7 @@ function handlePrdRightClick(e) {
       resolved: false
     });
     persist();
-    render();
+    renderPreservingPrdReviewScroll();
   });
 }
 
@@ -1370,7 +1431,7 @@ function showPrdComment(comment, anchorEl) {
     }
     close();
     persist();
-    render();
+    renderPreservingPrdReviewScroll();
   };
 
   bd.querySelector("#prdCommentDelete").onclick = () => {
@@ -1381,7 +1442,7 @@ function showPrdComment(comment, anchorEl) {
     }
     close();
     persist();
-    render();
+    renderPreservingPrdReviewScroll();
   };
 
   setTimeout(() => ta.focus(), 10);
