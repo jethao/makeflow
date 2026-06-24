@@ -309,6 +309,26 @@ function prdReviewCore() {
         source: "local_file",
         comments: []
       };
+    },
+    preserveScrollPositions(targets, action, scheduleRestore) {
+      const snapshots = Array.from(targets || [])
+        .filter((target, index, list) => target && list.indexOf(target) === index)
+        .filter((target) => typeof target.scrollTop === "number" || typeof target.scrollLeft === "number")
+        .map((target) => ({
+          target,
+          top: Number(target.scrollTop) || 0,
+          left: Number(target.scrollLeft) || 0
+        }));
+      const result = typeof action === "function" ? action() : undefined;
+      const restore = () => {
+        snapshots.forEach(({ target, top, left }) => {
+          if (typeof target.scrollTop === "number") target.scrollTop = top;
+          if (typeof target.scrollLeft === "number") target.scrollLeft = left;
+        });
+      };
+      restore();
+      if (typeof scheduleRestore === "function") scheduleRestore(restore);
+      return result;
     }
   };
 }
@@ -320,6 +340,22 @@ function getActivePrdReviewSource(product = activeProduct()) {
 function isUnlocked(index) {
   const product = activeProduct();
   return prdReviewCore().isPrdReviewUnlocked(product, index);
+}
+
+function renderPreservingPrdReviewScroll() {
+  const targets = [
+    document.scrollingElement,
+    document.documentElement,
+    document.body,
+    workflowView,
+    checklist?.parentElement,
+    checklist
+  ];
+  return prdReviewCore().preserveScrollPositions(targets, render, (restore) => {
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(restore);
+    }
+  });
 }
 
 function statusFor(index) {
@@ -1253,7 +1289,7 @@ function handlePrdRightClick(e) {
       resolved: false
     });
     persist();
-    render();
+    renderPreservingPrdReviewScroll();
   });
 }
 
@@ -1370,7 +1406,7 @@ function showPrdComment(comment, anchorEl) {
     }
     close();
     persist();
-    render();
+    renderPreservingPrdReviewScroll();
   };
 
   bd.querySelector("#prdCommentDelete").onclick = () => {
@@ -1381,7 +1417,7 @@ function showPrdComment(comment, anchorEl) {
     }
     close();
     persist();
-    render();
+    renderPreservingPrdReviewScroll();
   };
 
   setTimeout(() => ta.focus(), 10);

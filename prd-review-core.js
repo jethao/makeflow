@@ -39,6 +39,29 @@ export function createLocalPrdOutput({ name, content }) {
   };
 }
 
+export function preserveScrollPositions(targets, action, scheduleRestore) {
+  const snapshots = Array.from(targets || [])
+    .filter((target, index, list) => target && list.indexOf(target) === index)
+    .filter((target) => typeof target.scrollTop === "number" || typeof target.scrollLeft === "number")
+    .map((target) => ({
+      target,
+      top: Number(target.scrollTop) || 0,
+      left: Number(target.scrollLeft) || 0
+    }));
+
+  const result = typeof action === "function" ? action() : undefined;
+  const restore = () => {
+    snapshots.forEach(({ target, top, left }) => {
+      if (typeof target.scrollTop === "number") target.scrollTop = top;
+      if (typeof target.scrollLeft === "number") target.scrollLeft = left;
+    });
+  };
+
+  restore();
+  if (typeof scheduleRestore === "function") scheduleRestore(restore);
+  return result;
+}
+
 function hasPrdContent(output) {
   return Boolean(output && typeof output.content === "string" && output.content.trim());
 }
@@ -47,6 +70,7 @@ if (typeof window !== "undefined") {
   window.PrdReviewCore = {
     isPrdReviewUnlocked,
     getPrdReviewSource,
-    createLocalPrdOutput
+    createLocalPrdOutput,
+    preserveScrollPositions
   };
 }
