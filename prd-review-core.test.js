@@ -5,7 +5,8 @@ import {
   getPrdReviewSource,
   isPrdReviewUnlocked,
   createLocalPrdOutput,
-  preserveScrollPositions
+  preserveScrollPositions,
+  preserveScrollPositionBySelector
 } from "./prd-review-core.js";
 
 test("PRD review is unlocked before Spec is complete", () => {
@@ -86,4 +87,30 @@ test("preserveScrollPositions restores scroll after a render callback", () => {
 
   assert.equal(scrollArea.scrollTop, 640);
   assert.equal(scrollArea.scrollLeft, 12);
+});
+
+test("preserveScrollPositionBySelector restores scroll on replaced content", () => {
+  const oldPanel = { scrollTop: 520, scrollLeft: 0 };
+  const newPanel = { scrollTop: 0, scrollLeft: 0 };
+  const root = {
+    current: oldPanel,
+    querySelector(selector) {
+      assert.equal(selector, ".prd-drafted-content");
+      return this.current;
+    }
+  };
+  let scheduledRestore = null;
+
+  preserveScrollPositionBySelector(".prd-drafted-content", root, () => {
+    root.current = newPanel;
+  }, (restore) => {
+    scheduledRestore = restore;
+  });
+
+  assert.equal(newPanel.scrollTop, 520);
+
+  newPanel.scrollTop = 0;
+  scheduledRestore();
+
+  assert.equal(newPanel.scrollTop, 520);
 });

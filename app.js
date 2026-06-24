@@ -329,6 +329,22 @@ function prdReviewCore() {
       restore();
       if (typeof scheduleRestore === "function") scheduleRestore(restore);
       return result;
+    },
+    preserveScrollPositionBySelector(selector, root, action, scheduleRestore) {
+      const queryRoot = root && typeof root.querySelector === "function" ? root : null;
+      const before = queryRoot ? queryRoot.querySelector(selector) : null;
+      const top = before && typeof before.scrollTop === "number" ? before.scrollTop : 0;
+      const left = before && typeof before.scrollLeft === "number" ? before.scrollLeft : 0;
+      const result = typeof action === "function" ? action() : undefined;
+      const restore = () => {
+        const after = queryRoot ? queryRoot.querySelector(selector) : null;
+        if (!after) return;
+        if (typeof after.scrollTop === "number") after.scrollTop = top;
+        if (typeof after.scrollLeft === "number") after.scrollLeft = left;
+      };
+      restore();
+      if (typeof scheduleRestore === "function") scheduleRestore(restore);
+      return result;
     }
   };
 }
@@ -351,11 +367,65 @@ function renderPreservingPrdReviewScroll() {
     checklist?.parentElement,
     checklist
   ];
-  return prdReviewCore().preserveScrollPositions(targets, render, (restore) => {
+  const scheduleRestore = (restore) => {
+    restore();
     if (typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(restore);
+      window.requestAnimationFrame(() => {
+        restore();
+        window.requestAnimationFrame(restore);
+      });
     }
-  });
+  };
+
+  return prdReviewCore().preserveScrollPositionBySelector(".prd-drafted-content", document, () => {
+    return prdReviewCore().preserveScrollPositions(targets, render, scheduleRestore);
+  }, scheduleRestore);
+}
+
+function keepPrdContextAfterComment(commentId, fallbackQuote) {
+  const prdBox = document.querySelector(".prd-drafted-content");
+  if (!prdBox) return;
+
+  const highlight = commentId
+    ? prdBox.querySelector(`[data-comment-id="${escapeCssIdentifier(commentId)}"]`)
+    : null;
+  const target = highlight || findPrdTextContext(prdBox, fallbackQuote);
+  if (!target) return;
+
+  const targetTop = target.offsetTop || 0;
+  const contextOffset = Math.max(24, Math.round(prdBox.clientHeight * 0.28));
+  prdBox.scrollTop = Math.max(0, targetTop - contextOffset);
+}
+
+function findPrdTextContext(container, quote) {
+  const search = String(quote || "").trim().toLowerCase();
+  if (!container || !search) return null;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  let node;
+  while ((node = walker.nextNode())) {
+    if ((node.nodeValue || "").toLowerCase().includes(search)) {
+      return node.parentElement;
+    }
+  }
+  return null;
+}
+
+function escapeCssIdentifier(value) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(String(value));
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+function schedulePrdContextRestore(commentId, fallbackQuote) {
+  const restore = () => keepPrdContextAfterComment(commentId, fallbackQuote);
+  restore();
+  if (typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(() => {
+      restore();
+      window.requestAnimationFrame(restore);
+    });
+  } else {
+    setTimeout(restore, 0);
+  }
 }
 
 function statusFor(index) {
@@ -1280,8 +1350,9 @@ function handlePrdRightClick(e) {
     const prd = getActivePrdReviewSource(product).output;
     if (!prd) return;
     if (!Array.isArray(prd.comments)) prd.comments = [];
+    const commentId = "c_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
     prd.comments.push({
-      id: "c_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9),
+      id: commentId,
       quote,
       comment: commentText,
       createdAt: new Date().toISOString(),
@@ -1290,6 +1361,7 @@ function handlePrdRightClick(e) {
     });
     persist();
     renderPreservingPrdReviewScroll();
+    schedulePrdContextRestore(commentId, quote);
   });
 }
 
@@ -1407,6 +1479,7 @@ function showPrdComment(comment, anchorEl) {
     close();
     persist();
     renderPreservingPrdReviewScroll();
+    schedulePrdContextRestore(comment.id, comment.quote);
   };
 
   bd.querySelector("#prdCommentDelete").onclick = () => {
@@ -1418,6 +1491,7 @@ function showPrdComment(comment, anchorEl) {
     close();
     persist();
     renderPreservingPrdReviewScroll();
+    schedulePrdContextRestore(null, comment.quote);
   };
 
   setTimeout(() => ta.focus(), 10);

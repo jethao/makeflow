@@ -62,6 +62,25 @@ export function preserveScrollPositions(targets, action, scheduleRestore) {
   return result;
 }
 
+export function preserveScrollPositionBySelector(selector, root, action, scheduleRestore) {
+  const queryRoot = root && typeof root.querySelector === "function" ? root : null;
+  const before = queryRoot ? queryRoot.querySelector(selector) : null;
+  const top = before && typeof before.scrollTop === "number" ? before.scrollTop : 0;
+  const left = before && typeof before.scrollLeft === "number" ? before.scrollLeft : 0;
+
+  const result = typeof action === "function" ? action() : undefined;
+  const restore = () => {
+    const after = queryRoot ? queryRoot.querySelector(selector) : null;
+    if (!after) return;
+    if (typeof after.scrollTop === "number") after.scrollTop = top;
+    if (typeof after.scrollLeft === "number") after.scrollLeft = left;
+  };
+
+  restore();
+  if (typeof scheduleRestore === "function") scheduleRestore(restore);
+  return result;
+}
+
 function hasPrdContent(output) {
   return Boolean(output && typeof output.content === "string" && output.content.trim());
 }
@@ -71,6 +90,7 @@ if (typeof window !== "undefined") {
     isPrdReviewUnlocked,
     getPrdReviewSource,
     createLocalPrdOutput,
-    preserveScrollPositions
+    preserveScrollPositions,
+    preserveScrollPositionBySelector
   };
 }
