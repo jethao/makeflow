@@ -11,6 +11,36 @@
     { title: "Regional label mix risk", owner: "Compliance", status: "Scan gate added" }
   ];
 
+  const MOCK_QUALITY_HISTOGRAMS = [
+    {
+      title: "Defect Pareto",
+      bins: [
+        { label: "Cosmetic", value: 42 },
+        { label: "Packout", value: 28 },
+        { label: "Label", value: 18 },
+        { label: "Functional", value: 12 }
+      ]
+    },
+    {
+      title: "Line yield distribution",
+      bins: [
+        { label: "94-95%", value: 18 },
+        { label: "96-97%", value: 34 },
+        { label: "98-99%", value: 38 },
+        { label: "100%", value: 10 }
+      ]
+    },
+    {
+      title: "Rework cycle time",
+      bins: [
+        { label: "< 15m", value: 22 },
+        { label: "15-30m", value: 46 },
+        { label: "30-60m", value: 24 },
+        { label: "> 60m", value: 8 }
+      ]
+    }
+  ];
+
   function renderStage(product, elements) {
     const mpPricing = getStagePricing(product, "mp");
 
@@ -217,6 +247,36 @@
             <strong>Runbook approved</strong>
             <em>Warranty flow, service scripts, known issues, and escalation owners are ready for launch.</em>
           </div>
+        </div>
+        ${renderQualityDashboard()}
+      </section>
+    `;
+  }
+
+  function renderQualityDashboard() {
+    return `
+      <section class="mp-quality-dashboard" aria-label="MP manufacture quality dashboard">
+        <div class="section-heading">
+          <h4>Manufacture quality dashboard</h4>
+          <span>Mock quality pulse</span>
+        </div>
+        <div class="mp-quality-grid">
+          ${MOCK_QUALITY_HISTOGRAMS.map((histogram) => `
+            <article class="mp-quality-histogram">
+              <h5>${defaultEscapeHtml(histogram.title)}</h5>
+              <div class="mp-quality-bars">
+                ${histogram.bins.map((bin) => `
+                  <div class="mp-quality-bar-row">
+                    <span>${defaultEscapeHtml(bin.label)}</span>
+                    <div class="mp-quality-bar" aria-label="${defaultEscapeHtml(histogram.title)} ${defaultEscapeHtml(bin.label)} ${bin.value}%">
+                      <span style="width: ${bin.value}%"></span>
+                    </div>
+                    <strong>${bin.value}%</strong>
+                  </div>
+                `).join("")}
+              </div>
+            </article>
+          `).join("")}
         </div>
       </section>
     `;
