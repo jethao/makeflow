@@ -84,6 +84,24 @@ test("MP stage render includes factory ramp and launch readiness cards", () => {
   assert.match(elements.checklist.innerHTML, /Support handoff/);
 });
 
+test("MP launch readiness includes manufacture quality dashboard histograms", () => {
+  const context = createBrowserContext();
+  vm.runInNewContext(readFileSync("MP.js", "utf8"), context);
+
+  const elements = createStageElements();
+
+  context.window.MPStage.renderStage({}, elements);
+
+  assert.match(elements.checklist.innerHTML, /Manufacture quality dashboard/);
+  for (const histogram of ["Defect Pareto", "Line yield distribution", "Rework cycle time"]) {
+    assert.match(elements.checklist.innerHTML, new RegExp(histogram));
+  }
+  assert.equal(elements.checklist.innerHTML.match(/class="mp-quality-histogram"/g)?.length, 3);
+  assert.ok(
+    elements.checklist.innerHTML.indexOf("Launch readiness") < elements.checklist.innerHTML.indexOf("Manufacture quality dashboard")
+  );
+});
+
 test("MP factory ramp renders top 5 factory issues", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("MP.js", "utf8"), context);
