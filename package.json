@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check app.js && node --check spec.js && node --check prd-review-modal.js && node --check feasibility.js && node --check prototype.js && node --check EVT.js && node --check DVT.js && node --check PVT.js && node --check MP.js && node --check Maintenance.js && node --check design.js && node --check server.js && node --check industrial-rendering-core.js && node --test feasibility-core.test.js prd-review-core.test.js design-pricing-core.test.js industrial-rendering-core.test.js design-modal.test.js prototype-modal.test.js EVT-modal.test.js DVT-modal.test.js PVT-modal.test.js MP-modal.test.js Maintenance-modal.test.js"
+    "check": "node --check app.js && node --check spec.js && node --check prd-review-modal.js && node --check feasibility.js && node --check prototype.js && node --check EVT.js && node --check DVT.js && node --check PVT.js && node --check MP.js && node --check Maintenance.js && node --check design.js && node --check server.js && node --check design-prompt-core.js && node --check industrial-rendering-core.js && node --test feasibility-core.test.js prd-review-core.test.js design-pricing-core.test.js design-prompt-core.test.js industrial-rendering-core.test.js design-modal.test.js prototype-modal.test.js EVT-modal.test.js DVT-modal.test.js PVT-modal.test.js MP-modal.test.js Maintenance-modal.test.js"
   },
   "dependencies": {
     "three": "^0.181.2"

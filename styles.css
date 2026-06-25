@@ -1229,6 +1229,21 @@ svg {
   font-weight: 850;
 }
 
+.design-output-icon {
+  width: 42px;
+  height: 42px;
+  padding: 7px;
+  display: block;
+  border-radius: 8px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .design-output-thumbnail {
   width: 100%;
   max-width: 112px;
