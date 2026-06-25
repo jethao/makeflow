@@ -1,44 +1,10 @@
 (function() {
-  let skuOrderModal = null;
-  let skuOrderModalContent = null;
-  let skuOrderCloseButton = null;
-
   const MOCK_FACTORY_ISSUES = [
     { title: "Outgoing QA sampling backlog", owner: "Quality", status: "Extra inspector assigned" },
     { title: "Packing line takt slip", owner: "Operations", status: "Station timing review" },
     { title: "Second shift training gap", owner: "Line lead", status: "Certification in progress" },
     { title: "Carton corner crush", owner: "Packaging", status: "Drop sample review" },
     { title: "Regional label mix risk", owner: "Compliance", status: "Scan gate added" }
-  ];
-
-  const MOCK_QUALITY_HISTOGRAMS = [
-    {
-      title: "Defect Pareto",
-      bins: [
-        { label: "Cosmetic", value: 42 },
-        { label: "Packout", value: 28 },
-        { label: "Label", value: 18 },
-        { label: "Functional", value: 12 }
-      ]
-    },
-    {
-      title: "Line yield distribution",
-      bins: [
-        { label: "94-95%", value: 18 },
-        { label: "96-97%", value: 34 },
-        { label: "98-99%", value: 38 },
-        { label: "100%", value: 10 }
-      ]
-    },
-    {
-      title: "Rework cycle time",
-      bins: [
-        { label: "< 15m", value: 22 },
-        { label: "15-30m", value: 46 },
-        { label: "30-60m", value: 24 },
-        { label: "> 60m", value: 8 }
-      ]
-    }
   ];
 
   function renderStage(product, elements) {
@@ -65,11 +31,6 @@
       </li>
     `;
     elements.checklistCount.textContent = "";
-
-    const orderSkuButton = document.getElementById("orderMoreSkuButton");
-    if (orderSkuButton) {
-      orderSkuButton.addEventListener("click", openSkuOrderModal);
-    }
   }
 
   function getStagePricing(product, key) {
@@ -115,117 +76,7 @@
             </ol>
           </div>
         </div>
-        <div class="mp-sku-panel">
-          <div>
-            <span>SKU progress</span>
-            <strong>4 / 6 SKUs released</strong>
-          </div>
-          <div class="mp-sku-track" aria-label="4 of 6 SKUs released">
-            <span style="width: 67%"></span>
-          </div>
-          <div>
-            <span>SKU in queue</span>
-            <strong>Graphite / US, Sand / EU</strong>
-          </div>
-          <div class="mp-sku-process-list">
-            <article>
-              <div>
-                <span>Graphite / US progress</span>
-                <strong>83%</strong>
-              </div>
-              <div class="mp-sku-track" aria-label="Graphite / US 83% complete">
-                <span style="width: 83%"></span>
-              </div>
-              <p>Line trial -> QA sampling -> Packout approval</p>
-            </article>
-            <article>
-              <div>
-                <span>Sand / EU progress</span>
-                <strong>58%</strong>
-              </div>
-              <div class="mp-sku-track" aria-label="Sand / EU 58% complete">
-                <span style="width: 58%"></span>
-              </div>
-              <p>Label verification -> Regulatory file -> Pallet build</p>
-            </article>
-          </div>
-          <button id="orderMoreSkuButton" class="secondary-button" type="button">Order more SKU</button>
-        </div>
       </section>
-    `;
-  }
-
-  function openSkuOrderModal() {
-    createSkuOrderModalIfNeeded();
-    skuOrderModalContent.innerHTML = renderSkuOrderForm();
-    skuOrderModal.classList.remove("is-hidden");
-    document.getElementById("mpSkuNameInput")?.focus();
-  }
-
-  function createSkuOrderModalIfNeeded() {
-    if (skuOrderModal) return;
-
-    document.body.insertAdjacentHTML("beforeend", `
-      <div id="mpSkuOrderModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="mpSkuOrderTitle">
-        <section class="modal-panel confirm-panel">
-          <div class="modal-header">
-            <div>
-              <span>MP</span>
-              <h3 id="mpSkuOrderTitle">Order more SKU</h3>
-            </div>
-            <button id="mpSkuOrderCloseButton" class="icon-button" type="button" aria-label="Close SKU order window">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
-          <div id="mpSkuOrderContent" class="mp-sku-order-content"></div>
-          <div class="modal-footer">
-            <button id="mpSkuOrderCancelButton" class="secondary-button" type="button">Cancel</button>
-            <button id="mpSkuOrderSaveButton" class="primary-button" type="button">Add SKU order</button>
-          </div>
-        </section>
-      </div>
-    `);
-
-    skuOrderModal = document.getElementById("mpSkuOrderModal");
-    skuOrderModalContent = document.getElementById("mpSkuOrderContent");
-    skuOrderCloseButton = document.getElementById("mpSkuOrderCloseButton");
-
-    skuOrderCloseButton.addEventListener("click", closeSkuOrderModal);
-    document.getElementById("mpSkuOrderCancelButton").addEventListener("click", closeSkuOrderModal);
-    document.getElementById("mpSkuOrderSaveButton").addEventListener("click", closeSkuOrderModal);
-    skuOrderModal.addEventListener("click", (event) => {
-      if (event.target === skuOrderModal) closeSkuOrderModal();
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && skuOrderModal && !skuOrderModal.classList.contains("is-hidden")) closeSkuOrderModal();
-    });
-  }
-
-  function closeSkuOrderModal() {
-    if (!skuOrderModal) return;
-    skuOrderModal.classList.add("is-hidden");
-  }
-
-  function renderSkuOrderForm() {
-    return `
-      <div class="mp-sku-order-grid">
-        <label>
-          <span>SKU name</span>
-          <input id="mpSkuNameInput" type="text" placeholder="e.g. White / JP">
-        </label>
-        <label>
-          <span>Region</span>
-          <input id="mpSkuRegionInput" type="text" placeholder="e.g. Japan">
-        </label>
-        <label>
-          <span>Quantity</span>
-          <input id="mpSkuQuantityInput" type="number" min="1" step="1" placeholder="1200">
-        </label>
-        <label>
-          <span>Target ship date</span>
-          <input id="mpSkuShipDateInput" type="date">
-        </label>
-      </div>
     `;
   }
 
@@ -260,24 +111,7 @@
           <h4>Manufacture quality dashboard</h4>
           <span>Mock quality pulse</span>
         </div>
-        <div class="mp-quality-grid">
-          ${MOCK_QUALITY_HISTOGRAMS.map((histogram) => `
-            <article class="mp-quality-histogram">
-              <h5>${defaultEscapeHtml(histogram.title)}</h5>
-              <div class="mp-quality-bars">
-                ${histogram.bins.map((bin) => `
-                  <div class="mp-quality-bar-row">
-                    <span>${defaultEscapeHtml(bin.label)}</span>
-                    <div class="mp-quality-bar" aria-label="${defaultEscapeHtml(histogram.title)} ${defaultEscapeHtml(bin.label)} ${bin.value}%">
-                      <span style="width: ${bin.value}%"></span>
-                    </div>
-                    <strong>${bin.value}%</strong>
-                  </div>
-                `).join("")}
-              </div>
-            </article>
-          `).join("")}
-        </div>
+        <img class="mp-quality-dashboard-image" src="img/MP-dash.png" alt="MP manufacture quality dashboard">
       </section>
     `;
   }
@@ -302,8 +136,6 @@
   }
 
   window.MPStage = {
-    renderStage,
-    openSkuOrderModal,
-    closeSkuOrderModal
+    renderStage
   };
 })();
