@@ -92,6 +92,7 @@
           key: type.key,
           title: result.title || type.title,
           content: result.content,
+          rendering: result.rendering || null,
           generatedAt: new Date().toISOString(),
           inputFile: result.inputFile || "",
           outputFile: result.outputFile || ""
@@ -429,12 +430,20 @@
       <div class="design-output-grid">
         ${available.map((type) => `
           <button class="design-output-button" type="button" data-design-key="${escapeHtml(type.key)}" aria-label="Open ${escapeHtml(type.title)}">
-            <span>${escapeHtml(type.icon)}</span>
+            ${renderDesignOutputVisual(type, outputs[type.key])}
             <strong>${escapeHtml(outputs[type.key].title || type.title)}</strong>
           </button>
         `).join("")}
       </div>
     `;
+  }
+
+  function renderDesignOutputVisual(type, output) {
+    if (type.key === "industrial") {
+      const rendering = getIndustrialRendering(output);
+      return `<img class="design-output-thumbnail" src="${escapeHtml(buildIndustrialPreviewImage(rendering))}" alt="${escapeHtml(type.title)} 3D preview">`;
+    }
+    return `<span>${escapeHtml(type.icon)}</span>`;
   }
 
   function renderEstimatePricingSection(product) {
@@ -517,9 +526,292 @@
 
     createDesignDocModalIfNeeded();
     designDocTitle.textContent = output.title || "Design";
-    designDocContent.innerHTML = app().renderMarkdown ? app().renderMarkdown(output.content) : escapeHtml(output.content);
+    const markdown = app().renderMarkdown ? app().renderMarkdown(output.content) : escapeHtml(output.content);
+    designDocContent.innerHTML = `${renderIndustrialRendering(output)}${markdown}`;
     designDocModal.classList.remove("is-hidden");
+    const rendering = getIndustrialRendering(output);
+    if (rendering) {
+      mountIndustrialRendering(rendering);
+    }
     designDocCloseButton.focus();
+  }
+
+  function renderIndustrialRendering(output) {
+    const rendering = getIndustrialRendering(output);
+    if (!rendering) return "";
+    const parts = Array.isArray(rendering.parts) ? rendering.parts : [];
+    const title = rendering.title || "Rotatable industrial design rendering";
+    return `
+      <section class="design-rendering-viewer" aria-label="${escapeHtml(title)}">
+        <div class="design-rendering-header">
+          <div>
+            <h4>${escapeHtml(title)}</h4>
+            <span id="industrialDesignRenderingStatus">Drag to rotate</span>
+          </div>
+        </div>
+        <img class="design-rendering-image" src="${escapeHtml(buildIndustrialPreviewImage(rendering))}" alt="${escapeHtml(title)} preview">
+        <canvas id="industrialDesignRenderingCanvas" width="960" height="540"></canvas>
+        ${parts.length ? `
+          <div class="design-rendering-part-list">
+            ${parts.map((part) => `<span>${escapeHtml(part.label || part.id || "Part")}</span>`).join("")}
+          </div>
+        ` : ""}
+      </section>
+    `;
+  }
+
+  function getIndustrialRendering(output) {
+    if (output?.key !== "industrial") return null;
+    if (output.rendering && typeof output.rendering === "object") return output.rendering;
+    return createDefaultIndustrialRendering();
+  }
+
+  function createDefaultIndustrialRendering() {
+    return {
+      title: "Industrial design preview",
+      camera: { x: 3, y: 2, z: 5 },
+      parts: [
+        {
+          id: "body",
+          label: "Body shell",
+          shape: "rounded_box",
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [2.4, 0.9, 1.2],
+          color: "#62748a"
+        },
+        {
+          id: "interface",
+          label: "Interaction surface",
+          shape: "box",
+          position: [0.25, 0.28, 0.62],
+          rotation: [0, 0, 0],
+          scale: [1.2, 0.08, 0.12],
+          color: "#111827"
+        }
+      ]
+    };
+  }
+
+  function buildIndustrialPreviewImage(rendering) {
+    const parts = Array.isArray(rendering?.parts) && rendering.parts.length
+      ? rendering.parts
+      : createDefaultIndustrialRendering().parts;
+    const title = rendering?.title || "Industrial design preview";
+    const shapes = parts.slice(0, 8).map((part, index) => renderPreviewPart(part, index)).join("");
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" role="img" aria-label="${escapeSvg(title)}">
+        <defs>
+          <linearGradient id="preview-bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#f8fafc"/>
+            <stop offset="1" stop-color="#e5ebf1"/>
+          </linearGradient>
+          <filter id="preview-shadow" x="-20%" y="-20%" width="140%" height="160%">
+            <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.18"/>
+          </filter>
+        </defs>
+        <rect width="320" height="180" rx="18" fill="url(#preview-bg)"/>
+        <ellipse cx="164" cy="140" rx="92" ry="18" fill="#cbd5e1" opacity="0.55"/>
+        <g filter="url(#preview-shadow)">
+          ${shapes}
+        </g>
+      </svg>
+    `.replace(/\s+/g, " ").trim();
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }
+
+  function renderPreviewPart(part, index) {
+    const scale = Array.isArray(part?.scale) ? part.scale : [1, 1, 1];
+    const position = Array.isArray(part?.position) ? part.position : [0, 0, 0];
+    const width = clamp(numberOr(scale[0], 1) * 36, 14, 120);
+    const height = clamp(numberOr(scale[1], 1) * 36, 10, 76);
+    const depth = clamp(numberOr(scale[2], 1) * 18, 8, 44);
+    const x = 160 + numberOr(position[0], 0) * 32 - width / 2 + index * 2;
+    const y = 102 - numberOr(position[1], 0) * 24 - height / 2 - numberOr(position[2], 0) * 10 - index * 3;
+    const color = normalizePreviewColor(part?.color);
+    const sideColor = shadeHexColor(color, -24);
+    const topColor = shadeHexColor(color, 22);
+    const shape = String(part?.shape || "box").toLowerCase();
+
+    if (shape === "sphere") {
+      const radius = Math.max(width, height) / 2;
+      return `
+        <circle cx="${x + width / 2}" cy="${y + height / 2}" r="${radius}" fill="${color}"/>
+        <ellipse cx="${x + width / 2 - radius * 0.22}" cy="${y + height / 2 - radius * 0.25}" rx="${radius * 0.35}" ry="${radius * 0.18}" fill="#ffffff" opacity="0.28"/>
+      `;
+    }
+
+    if (shape === "cylinder") {
+      return `
+        <path d="M ${x} ${y + depth / 2} C ${x} ${y - depth / 4}, ${x + width} ${y - depth / 4}, ${x + width} ${y + depth / 2} L ${x + width} ${y + height} C ${x + width} ${y + height + depth / 2}, ${x} ${y + height + depth / 2}, ${x} ${y + height} Z" fill="${color}"/>
+        <ellipse cx="${x + width / 2}" cy="${y + depth / 2}" rx="${width / 2}" ry="${depth / 2}" fill="${topColor}"/>
+      `;
+    }
+
+    return `
+      <polygon points="${x},${y + depth} ${x + depth},${y} ${x + width + depth},${y} ${x + width},${y + depth}" fill="${topColor}"/>
+      <polygon points="${x + width},${y + depth} ${x + width + depth},${y} ${x + width + depth},${y + height} ${x + width},${y + height + depth}" fill="${sideColor}"/>
+      <rect x="${x}" y="${y + depth}" width="${width}" height="${height}" rx="${shape === "rounded_box" ? 10 : 2}" fill="${color}"/>
+    `;
+  }
+
+  async function mountIndustrialRendering(rendering) {
+    const canvas = document.getElementById("industrialDesignRenderingCanvas");
+    const status = document.getElementById("industrialDesignRenderingStatus");
+    if (!canvas || typeof canvas.getContext !== "function") return;
+
+    let THREE;
+    try {
+      THREE = await import("./node_modules/three/build/three.module.js");
+    } catch {
+      if (status) status.textContent = "3D renderer unavailable";
+      return;
+    }
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+    const scene = new THREE.Scene();
+    const cameraPosition = rendering.camera || { x: 3, y: 2, z: 5 };
+    const camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.1, 100);
+    camera.position.set(numberOr(cameraPosition.x, 3), numberOr(cameraPosition.y, 2), numberOr(cameraPosition.z, 5));
+    camera.lookAt(0, 0, 0);
+
+    const root = new THREE.Group();
+    root.rotation.y = -0.35;
+    scene.add(root);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    keyLight.position.set(3, 4, 5);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
+    fillLight.position.set(-4, 2, -3);
+    scene.add(fillLight);
+
+    const parts = Array.isArray(rendering.parts) ? rendering.parts : [];
+    parts.forEach((part) => root.add(createRenderingMesh(THREE, part)));
+    if (!parts.length) root.add(createRenderingMesh(THREE, {
+      label: "Body shell",
+      shape: "rounded_box",
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [2.2, 0.9, 1.2],
+      color: "#62748a"
+    }));
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(8, 8),
+      new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 0.9 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -1.15;
+    scene.add(floor);
+
+    let dragging = false;
+    let previousX = 0;
+    let previousY = 0;
+
+    canvas.addEventListener("pointerdown", (event) => {
+      dragging = true;
+      previousX = event.clientX;
+      previousY = event.clientY;
+      canvas.setPointerCapture?.(event.pointerId);
+      if (status) status.textContent = "Rotating";
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!dragging) return;
+      const deltaX = event.clientX - previousX;
+      const deltaY = event.clientY - previousY;
+      root.rotation.y += deltaX * 0.01;
+      root.rotation.x = clamp(root.rotation.x + deltaY * 0.008, -0.8, 0.8);
+      previousX = event.clientX;
+      previousY = event.clientY;
+    });
+    canvas.addEventListener("pointerup", (event) => {
+      dragging = false;
+      canvas.releasePointerCapture?.(event.pointerId);
+      if (status) status.textContent = "Drag to rotate";
+    });
+    canvas.addEventListener("pointerleave", () => {
+      dragging = false;
+      if (status) status.textContent = "Drag to rotate";
+    });
+
+    function resize() {
+      const width = Math.max(320, canvas.clientWidth || canvas.width || 960);
+      const height = Math.max(220, Math.round(width * 0.5625));
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+
+    function animate() {
+      resize();
+      if (!dragging) root.rotation.y += 0.002;
+      renderer.render(scene, camera);
+      window.requestAnimationFrame?.(animate);
+    }
+
+    resize();
+    animate();
+  }
+
+  function createRenderingMesh(THREE, part) {
+    const scale = Array.isArray(part.scale) ? part.scale : [1, 1, 1];
+    const geometry = createRenderingGeometry(THREE, part.shape, scale);
+    const material = new THREE.MeshStandardMaterial({
+      color: part.color || "#62748a",
+      metalness: 0.08,
+      roughness: 0.52
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    const position = Array.isArray(part.position) ? part.position : [0, 0, 0];
+    const rotation = Array.isArray(part.rotation) ? part.rotation : [0, 0, 0];
+    mesh.position.set(numberOr(position[0], 0), numberOr(position[1], 0), numberOr(position[2], 0));
+    mesh.rotation.set(numberOr(rotation[0], 0), numberOr(rotation[1], 0), numberOr(rotation[2], 0));
+    return mesh;
+  }
+
+  function createRenderingGeometry(THREE, shape, scale) {
+    if (shape === "sphere") {
+      return new THREE.SphereGeometry(Math.max(numberOr(scale[0], 1), numberOr(scale[1], 1), numberOr(scale[2], 1)) / 2, 48, 24);
+    }
+    if (shape === "cylinder") {
+      return new THREE.CylinderGeometry(numberOr(scale[0], 1) / 2, numberOr(scale[0], 1) / 2, numberOr(scale[1], 1), 48);
+    }
+    return new THREE.BoxGeometry(numberOr(scale[0], 1), numberOr(scale[1], 1), numberOr(scale[2], 1), 2, 2, 2);
+  }
+
+  function numberOr(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function normalizePreviewColor(value) {
+    const color = typeof value === "string" ? value.trim() : "";
+    return /^#[0-9a-f]{6}$/i.test(color) ? color : "#62748a";
+  }
+
+  function shadeHexColor(color, delta) {
+    const normalized = normalizePreviewColor(color).slice(1);
+    const channels = [0, 2, 4].map((index) => {
+      const value = parseInt(normalized.slice(index, index + 2), 16);
+      return clamp(value + delta, 0, 255).toString(16).padStart(2, "0");
+    });
+    return `#${channels.join("")}`;
+  }
+
+  function escapeSvg(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function createDesignDocModalIfNeeded() {
