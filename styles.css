@@ -1229,6 +1229,17 @@ svg {
   font-weight: 850;
 }
 
+.design-output-thumbnail {
+  width: 100%;
+  max-width: 112px;
+  aspect-ratio: 16 / 9;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  object-fit: cover;
+}
+
 .design-output-button strong {
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -1314,6 +1325,73 @@ svg {
   min-width: 130px;
   height: 42px;
   font-size: 14px;
+}
+
+.design-rendering-viewer {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.design-rendering-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.design-rendering-header h4 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.design-rendering-header span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.design-rendering-viewer canvas {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f6 100%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.design-rendering-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  object-fit: cover;
+}
+
+.design-rendering-viewer canvas:active {
+  cursor: grabbing;
+}
+
+.design-rendering-part-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.design-rendering-part-list span {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .prototype-payment-summary {

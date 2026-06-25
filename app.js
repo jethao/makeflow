@@ -1828,6 +1828,7 @@ function normalizeDesignOutputs(outputs) {
       key,
       title: typeof output.title === "string" ? output.title : key,
       content: typeof output.content === "string" ? output.content : "",
+      rendering: output.rendering && typeof output.rendering === "object" ? output.rendering : null,
       generatedAt: typeof output.generatedAt === "string" ? output.generatedAt : "",
       inputFile: typeof output.inputFile === "string" ? output.inputFile : "",
       outputFile: typeof output.outputFile === "string" ? output.outputFile : ""

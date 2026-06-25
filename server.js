@@ -3,6 +3,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FEASIBILITY_SCORE_AREAS, parseFeasibilityAnalysisText } from "./feasibility-core.js";
+import {
+  buildIndustrialRenderingPromptInstruction,
+  parseGeneratedDesignResponse
+} from "./industrial-rendering-core.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT || 4173);
@@ -264,9 +268,9 @@ async function handleGenerateDesign(request, response) {
 
   await writeFile(inputPath, `${JSON.stringify(inputDocument, null, 2)}\n`, "utf8");
 
-  let content;
+  let generatedDesign;
   try {
-    content = await callOpenAIForDesign(apiKey, inputDocument);
+    generatedDesign = await callOpenAIForDesign(apiKey, inputDocument);
   } catch (error) {
     sendJson(response, 502, {
       error: error.message || "OpenAI request failed.",
@@ -275,7 +279,7 @@ async function handleGenerateDesign(request, response) {
     return;
   }
 
-  await writeFile(outputPath, content, "utf8");
+  await writeFile(outputPath, generatedDesign.content, "utf8");
 
   sendJson(response, 200, {
     message: "Design generated",
@@ -283,7 +287,8 @@ async function handleGenerateDesign(request, response) {
     title,
     inputFile: relativeLocalPath(inputPath),
     outputFile: relativeLocalPath(outputPath),
-    content
+    content: generatedDesign.content,
+    rendering: generatedDesign.rendering
   });
 }
 
@@ -511,9 +516,14 @@ async function callOpenAIForFeasibility(apiKey, inputDocument) {
 
 async function callOpenAIForDesign(apiKey, inputDocument) {
   const guidance = getDesignPromptGuidance(inputDocument.designType);
+  const outputInstruction = inputDocument.designType === "industrial"
+    ? buildIndustrialRenderingPromptInstruction()
+    : "Output ONLY Markdown. Do not include preamble or code fences.";
   const requestBody = {
     model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
-    prompt_cache_key: `makeflow-design-${inputDocument.designType}-v1`,
+    prompt_cache_key: inputDocument.designType === "industrial"
+      ? "makeflow-design-industrial-v2"
+      : `makeflow-design-${inputDocument.designType}-v1`,
     prompt_cache_retention: PROMPT_CACHE_RETENTION,
     input: [
       {
@@ -521,7 +531,7 @@ async function callOpenAIForDesign(apiKey, inputDocument) {
         content: [
           {
             type: "input_text",
-            text: `You are a senior product design engineer creating demo-stage design documentation. Produce a practical Markdown ${inputDocument.title}. ${guidance} Keep it concise but complete enough for a demo review. Include assumptions, architecture/structure, major components, interfaces, risks, and next validation steps where relevant. Output ONLY Markdown. Do not include preamble or code fences.`
+            text: `You are a senior product design engineer creating demo-stage design documentation. Produce a practical ${inputDocument.title}. ${guidance} Keep it concise but complete enough for a demo review. Include assumptions, architecture/structure, major components, interfaces, risks, and next validation steps where relevant. ${outputInstruction}`
           }
         ]
       },
@@ -563,11 +573,9 @@ async function callOpenAIForDesign(apiKey, inputDocument) {
   }
 
   const text = extractResponseText(data);
-  if (!text.trim()) {
-    throw new Error("OpenAI returned an empty design document.");
-  }
-
-  return text.trimEnd() + "\n";
+  const parsed = parseGeneratedDesignResponse(inputDocument.designType, text);
+  if (!parsed.content.trim()) throw new Error("OpenAI returned an empty design document.");
+  return parsed;
 }
 
 async function callOpenAIForDesignPricing(apiKey, inputDocument) {
