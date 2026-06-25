@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getDesignPromptGuidance } from "./design-prompt-core.js";
 import { FEASIBILITY_SCORE_AREAS, parseFeasibilityAnalysisText } from "./feasibility-core.js";
 import {
   buildIndustrialRenderingPromptInstruction,
@@ -666,22 +667,6 @@ function normalizeDesignPricingEstimate(input) {
     totalLow,
     totalHigh
   };
-}
-
-function getDesignPromptGuidance(designType) {
-  if (designType === "mechanical") {
-    return "Focus on enclosure, materials, mounting, thermal, ingress, serviceability, assembly, tolerances, and mechanical risks.";
-  }
-  if (designType === "electrical") {
-    return "Focus on power architecture, sensors, battery/charging if relevant, radios, connectors, PCB partitioning, safety, EMI/EMC, and electrical validation.";
-  }
-  if (designType === "software") {
-    return "Cover firmware, mobile app, and backend. Include system architecture, data flow, APIs, device communication, state handling, security, observability, update strategy, and testing.";
-  }
-  if (designType === "industrial") {
-    return "Focus on user-facing form, ergonomics, CMF, branding, affordances, accessibility, physical interaction, packaging cues, and manufacturable appearance.";
-  }
-  return "Create a test specification covering mechanical, electrical, firmware, mobile app, backend, integration, reliability, manufacturing, and acceptance tests.";
 }
 
 async function callOpenAIForSpecReview(apiKey, specDocument) {
