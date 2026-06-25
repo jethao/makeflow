@@ -84,7 +84,7 @@ test("MP stage render includes factory ramp and launch readiness cards", () => {
   assert.match(elements.checklist.innerHTML, /Support handoff/);
 });
 
-test("MP launch readiness includes manufacture quality dashboard histograms", () => {
+test("MP launch readiness includes manufacture quality dashboard image only", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("MP.js", "utf8"), context);
 
@@ -93,10 +93,12 @@ test("MP launch readiness includes manufacture quality dashboard histograms", ()
   context.window.MPStage.renderStage({}, elements);
 
   assert.match(elements.checklist.innerHTML, /Manufacture quality dashboard/);
-  for (const histogram of ["Defect Pareto", "Line yield distribution", "Rework cycle time"]) {
-    assert.match(elements.checklist.innerHTML, new RegExp(histogram));
-  }
-  assert.equal(elements.checklist.innerHTML.match(/class="mp-quality-histogram"/g)?.length, 3);
+  assert.match(elements.checklist.innerHTML, /src="img\/MP-dash\.png"/);
+  assert.match(elements.checklist.innerHTML, /alt="MP manufacture quality dashboard"/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /mp-quality-histogram/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /Defect Pareto/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /Line yield distribution/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /Rework cycle time/);
   assert.ok(
     elements.checklist.innerHTML.indexOf("Launch readiness") < elements.checklist.innerHTML.indexOf("Manufacture quality dashboard")
   );
@@ -123,7 +125,7 @@ test("MP factory ramp renders top 5 factory issues", () => {
   assert.equal(elements.checklist.innerHTML.match(/class="mp-factory-issue"/g)?.length, 5);
 });
 
-test("MP factory ramp card includes mock SKU progress and queued SKUs", () => {
+test("MP factory ramp does not include SKU progress card", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("MP.js", "utf8"), context);
 
@@ -131,63 +133,11 @@ test("MP factory ramp card includes mock SKU progress and queued SKUs", () => {
 
   context.window.MPStage.renderStage({}, elements);
 
-  assert.match(elements.checklist.innerHTML, /SKU progress/);
-  assert.match(elements.checklist.innerHTML, /4 \/ 6 SKUs released/);
-  assert.match(elements.checklist.innerHTML, /SKU in queue/);
-  assert.match(elements.checklist.innerHTML, /Graphite \/ US/);
-  assert.match(elements.checklist.innerHTML, /Sand \/ EU/);
-});
-
-test("MP factory ramp card includes progress for each queued SKU", () => {
-  const context = createBrowserContext();
-  vm.runInNewContext(readFileSync("MP.js", "utf8"), context);
-
-  const elements = createStageElements();
-
-  context.window.MPStage.renderStage({}, elements);
-
-  assert.match(elements.checklist.innerHTML, /Graphite \/ US progress/);
-  assert.match(elements.checklist.innerHTML, /83%/);
-  assert.match(elements.checklist.innerHTML, /Sand \/ EU progress/);
-  assert.match(elements.checklist.innerHTML, /58%/);
-});
-
-test("MP factory ramp card lists process for each queued SKU", () => {
-  const context = createBrowserContext();
-  vm.runInNewContext(readFileSync("MP.js", "utf8"), context);
-
-  const elements = createStageElements();
-
-  context.window.MPStage.renderStage({}, elements);
-
-  assert.match(elements.checklist.innerHTML, /Graphite \/ US/);
-  assert.match(elements.checklist.innerHTML, /Line trial/);
-  assert.match(elements.checklist.innerHTML, /QA sampling/);
-  assert.match(elements.checklist.innerHTML, /Packout approval/);
-  assert.match(elements.checklist.innerHTML, /Sand \/ EU/);
-  assert.match(elements.checklist.innerHTML, /Label verification/);
-  assert.match(elements.checklist.innerHTML, /Regulatory file/);
-  assert.match(elements.checklist.innerHTML, /Pallet build/);
-});
-
-test("MP factory ramp card opens order more SKU modal with SKU information fields", () => {
-  const context = createBrowserContext();
-  vm.runInNewContext(readFileSync("MP.js", "utf8"), context);
-
-  const elements = createStageElements();
-
-  context.window.MPStage.renderStage({}, elements);
-
-  assert.match(elements.checklist.innerHTML, /Order more SKU/);
-
-  context.window.MPStage.openSkuOrderModal();
-
-  const modal = context.document.getElementById("mpSkuOrderModal");
-  assert.equal(modal.classList.contains("is-hidden"), false);
-  assert.match(context.document.getElementById("mpSkuOrderContent").innerHTML, /SKU name/);
-  assert.match(context.document.getElementById("mpSkuOrderContent").innerHTML, /Region/);
-  assert.match(context.document.getElementById("mpSkuOrderContent").innerHTML, /Quantity/);
-  assert.match(context.document.getElementById("mpSkuOrderContent").innerHTML, /Target ship date/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /SKU progress/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /SKU in queue/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /Order more SKU/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /Graphite \/ US/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /Sand \/ EU/);
 });
 
 function createStageElements() {
