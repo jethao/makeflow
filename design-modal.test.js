@@ -90,6 +90,36 @@ test("industrial design output card includes an image preview", () => {
   assert.match(elements.checklist.innerHTML, /alt="Industrial Design 3D preview"/);
 });
 
+test("electrical and software design output cards use visual SVG icons", () => {
+  const context = createBrowserContext();
+  vm.runInNewContext(readFileSync("design.js", "utf8"), context);
+
+  const product = {
+    designOutputs: {
+      electrical: {
+        key: "electrical",
+        title: "Electrical Design",
+        content: "# Electrical Design"
+      },
+      software: {
+        key: "software",
+        title: "Software Design",
+        content: "# Software Design"
+      }
+    }
+  };
+  const elements = createStageElements(context.__elements);
+
+  context.window.DesignStage.renderStage(product, elements);
+
+  assert.match(elements.checklist.innerHTML, /class="design-output-icon circuit-board-icon"/);
+  assert.match(elements.checklist.innerHTML, /aria-label="Circuit board"/);
+  assert.match(elements.checklist.innerHTML, /class="design-output-icon terminal-code-icon"/);
+  assert.match(elements.checklist.innerHTML, /aria-label="Terminal with code"/);
+  assert.doesNotMatch(elements.checklist.innerHTML, />EE<\/span>/);
+  assert.doesNotMatch(elements.checklist.innerHTML, />SW<\/span>/);
+});
+
 test("industrial design output modal includes an image for older outputs without rendering data", () => {
   const context = createBrowserContext();
   vm.runInNewContext(readFileSync("design.js", "utf8"), context);

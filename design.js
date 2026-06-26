@@ -443,7 +443,38 @@
       const rendering = getIndustrialRendering(output);
       return `<img class="design-output-thumbnail" src="${escapeHtml(buildIndustrialPreviewImage(rendering))}" alt="${escapeHtml(type.title)} 3D preview">`;
     }
+    if (type.key === "electrical") {
+      return renderCircuitBoardIcon();
+    }
+    if (type.key === "software") {
+      return renderTerminalCodeIcon();
+    }
     return `<span>${escapeHtml(type.icon)}</span>`;
+  }
+
+  function renderCircuitBoardIcon() {
+    return `
+      <svg class="design-output-icon circuit-board-icon" viewBox="0 0 48 48" role="img" aria-label="Circuit board">
+        <rect x="12" y="10" width="24" height="28" rx="4"/>
+        <path d="M18 6v6M24 6v6M30 6v6M18 36v6M24 36v6M30 36v6M6 18h8M6 24h8M6 30h8M34 18h8M34 24h8M34 30h8"/>
+        <rect x="18" y="17" width="12" height="10" rx="2"/>
+        <path d="M18 32h12M21 27v5M27 27v5"/>
+        <circle cx="17" cy="32" r="1.5"/>
+        <circle cx="31" cy="32" r="1.5"/>
+      </svg>
+    `;
+  }
+
+  function renderTerminalCodeIcon() {
+    return `
+      <svg class="design-output-icon terminal-code-icon" viewBox="0 0 48 48" role="img" aria-label="Terminal with code">
+        <rect x="8" y="11" width="32" height="26" rx="4"/>
+        <path d="M8 18h32M17 25l-5 4 5 4M24 25l5 4-5 4M31 33h6"/>
+        <circle cx="14" cy="15" r="1"/>
+        <circle cx="18" cy="15" r="1"/>
+        <circle cx="22" cy="15" r="1"/>
+      </svg>
+    `;
   }
 
   function renderEstimatePricingSection(product) {
