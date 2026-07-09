@@ -479,18 +479,23 @@
 
   function renderEstimatePricingSection(product) {
     if (!hasAllDesignOutputs(product)) return "";
+    const pricingTable = hasPricingEstimate(product.designCostEstimate)
+      ? renderPricingTable(product.designCostEstimate)
+      : "";
 
     return `
       <div class="design-pricing-section">
         <button id="estimateDesignPricingButton" class="secondary-button" type="button" ${isEstimatingPricing ? "disabled" : ""}>
           Estimate pricing
         </button>
-        ${renderPricingTable(product.designCostEstimate)}
+        ${pricingTable}
       </div>
     `;
   }
 
   function renderPricingTable(estimate) {
+    if (!hasPricingEstimate(estimate)) return "";
+
     const normalized = estimate?.stages?.length ? estimate : normalizeStagePricingEstimate(estimate);
     const stages = Array.isArray(normalized?.stages) ? normalized.stages : [];
     if (stages.length === 0) return "";
@@ -535,6 +540,16 @@
         </button>
       </div>
     `;
+  }
+
+  function hasPricingEstimate(estimate) {
+    return Boolean(
+      estimate
+      && (
+        (Array.isArray(estimate.stages) && estimate.stages.length > 0)
+        || (Array.isArray(estimate.items) && estimate.items.length > 0)
+      )
+    );
   }
 
   function renderPricingStageItems(stage, fallbackCurrency) {
