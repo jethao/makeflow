@@ -1,3 +1,8 @@
 generated/
 node_modules/
 .playwright-cli/
+.DS_Store
+generated.zip
+.env
+.env.*
+!.env.example

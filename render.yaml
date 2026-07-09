@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: makeflow
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_PROMPT_CACHE_RETENTION
+        value: in_memory
