@@ -146,6 +146,58 @@ test("industrial design output modal includes an image for older outputs without
   assert.match(content, /<canvas id="industrialDesignRenderingCanvas"/);
 });
 
+test("design pricing table and approve button stay hidden before estimate", () => {
+  const context = createBrowserContext();
+  vm.runInNewContext(readFileSync("design.js", "utf8"), context);
+
+  const product = {
+    prdOutputs: [{ content: "# PRD" }],
+    feasibilityAnalyses: [{}, {}, { summary: "Feasible" }],
+    designOutputs: createAllDesignOutputs()
+  };
+  const elements = createStageElements(context.__elements);
+
+  context.window.DesignStage.renderStage(product, elements);
+
+  assert.match(elements.checklist.innerHTML, /id="estimateDesignPricingButton"/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /class="design-pricing-table"/);
+  assert.doesNotMatch(elements.checklist.innerHTML, /id="approveDesignPricingButton"/);
+});
+
+test("design pricing table and approve button show after estimate exists", () => {
+  const context = createBrowserContext();
+  vm.runInNewContext(readFileSync("design.js", "utf8"), context);
+
+  const product = {
+    prdOutputs: [{ content: "# PRD" }],
+    feasibilityAnalyses: [{}, {}, { summary: "Feasible" }],
+    designOutputs: createAllDesignOutputs(),
+    designCostEstimate: {
+      summary: "Estimated design cost.",
+      currency: "USD",
+      stages: [
+        {
+          stage: "prototype",
+          title: "Prototype",
+          low: 1000,
+          high: 2000,
+          currency: "USD",
+          basis: "Prototype work",
+          items: []
+        }
+      ],
+      totalLow: 1000,
+      totalHigh: 2000
+    }
+  };
+  const elements = createStageElements(context.__elements);
+
+  context.window.DesignStage.renderStage(product, elements);
+
+  assert.match(elements.checklist.innerHTML, /class="design-pricing-table"/);
+  assert.match(elements.checklist.innerHTML, /id="approveDesignPricingButton"/);
+});
+
 function sampleRendering() {
   return {
     title: "Rotatable industrial design rendering",
@@ -160,6 +212,16 @@ function sampleRendering() {
         color: "#5f6f7d"
       }
     ]
+  };
+}
+
+function createAllDesignOutputs() {
+  return {
+    mechanical: { key: "mechanical", title: "Mechanical Design", content: "# Mechanical Design" },
+    electrical: { key: "electrical", title: "Electrical Design", content: "# Electrical Design" },
+    software: { key: "software", title: "Software Design", content: "# Software Design" },
+    industrial: { key: "industrial", title: "Industrial Design", content: "# Industrial Design" },
+    test: { key: "test", title: "Test Spec", content: "# Test Spec" }
   };
 }
 
