@@ -115,7 +115,18 @@ Metrics:`;
 
 const state = loadState();
 let selectedIndex = Math.min(activeProduct()?.selectedIndex || 0, stages.length - 1);
+let currentUser = null;
+let appBootstrapped = false;
 
+const landingView = document.querySelector("#landingView");
+const appShell = document.querySelector("#appShell");
+const userMenuButton = document.querySelector("#userMenuButton");
+const userMenuDropdown = document.querySelector("#userMenuDropdown");
+const userAvatarImage = document.querySelector("#userAvatarImage");
+const userAvatarInitials = document.querySelector("#userAvatarInitials");
+const userMenuName = document.querySelector("#userMenuName");
+const userMenuEmail = document.querySelector("#userMenuEmail");
+const logoutButton = document.querySelector("#logoutButton");
 const dashboardButton = document.querySelector("#dashboardButton");
 const navDashboardButton = document.querySelector("#navDashboardButton");
 const topbarProductLabel = document.querySelector("#topbarProductLabel");
@@ -1675,13 +1686,129 @@ function initializeSpecController() {
   });
 }
 
-function bootstrapApp() {
-  initializeSpecController();
-  render();
+function userInitials(user) {
+  const source = String(user?.name || user?.email || "?").trim();
+  if (!source) return "?";
+
+  const parts = source.split(/[\s@._-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  return source.slice(0, 2).toUpperCase();
+}
+
+function setUserMenuOpen(open) {
+  if (!userMenuButton || !userMenuDropdown) return;
+  userMenuDropdown.classList.toggle("is-hidden", !open);
+  userMenuButton.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function updateUserMenu() {
+  if (!currentUser) return;
+
+  if (userMenuName) userMenuName.textContent = currentUser.name || "Signed in";
+  if (userMenuEmail) userMenuEmail.textContent = currentUser.email || "";
+  if (userAvatarInitials) userAvatarInitials.textContent = userInitials(currentUser);
+
+  if (userAvatarImage) {
+    if (currentUser.picture) {
+      userAvatarImage.src = currentUser.picture;
+      userAvatarImage.alt = currentUser.name || currentUser.email || "Account";
+      userAvatarImage.classList.remove("is-hidden");
+      if (userAvatarInitials) userAvatarInitials.classList.add("is-hidden");
+    } else {
+      userAvatarImage.removeAttribute("src");
+      userAvatarImage.alt = "";
+      userAvatarImage.classList.add("is-hidden");
+      if (userAvatarInitials) userAvatarInitials.classList.remove("is-hidden");
+    }
+  }
+}
+
+function showLanding() {
+  currentUser = null;
+  if (landingView) landingView.classList.remove("is-hidden");
+  if (appShell) appShell.classList.add("is-hidden");
+  setUserMenuOpen(false);
+}
+
+function showApp() {
+  if (landingView) landingView.classList.add("is-hidden");
+  if (appShell) appShell.classList.remove("is-hidden");
+  updateUserMenu();
+}
+
+function ensureAuthUiBound() {
+  if (userMenuButton?.dataset.bound === "true") return;
+  if (userMenuButton) userMenuButton.dataset.bound = "true";
+
+  userMenuButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const isOpen = userMenuDropdown && !userMenuDropdown.classList.contains("is-hidden");
+    setUserMenuOpen(!isOpen);
+  });
+
+  logoutButton?.addEventListener("click", async () => {
+    setUserMenuOpen(false);
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin"
+      });
+    } catch {
+      // Still clear the client-side view if the network call fails.
+    }
+    showLanding();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!userMenuDropdown || userMenuDropdown.classList.contains("is-hidden")) return;
+    const menu = document.querySelector("#userMenu");
+    if (menu && !menu.contains(event.target)) {
+      setUserMenuOpen(false);
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setUserMenuOpen(false);
+  });
+}
+
+async function bootstrapApp() {
+  ensureAuthUiBound();
+
+  try {
+    const response = await fetch("/api/auth/me", {
+      credentials: "same-origin"
+    });
+
+    if (!response.ok) {
+      showLanding();
+      return;
+    }
+
+    const payload = await response.json();
+    if (!payload?.user?.id) {
+      showLanding();
+      return;
+    }
+
+    currentUser = payload.user;
+    showApp();
+
+    if (!appBootstrapped) {
+      initializeSpecController();
+      appBootstrapped = true;
+    }
+    render();
+  } catch {
+    showLanding();
+  }
 }
 
 window.bootstrapApp = bootstrapApp;
 window.buildPrdPayload = buildPrdPayload;
+window.getCurrentUser = () => currentUser;
 
 function parseDisplayDate(value) {
   if (!value || value === "Ongoing") return "";
