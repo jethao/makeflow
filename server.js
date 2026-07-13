@@ -1,3 +1,4 @@
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
@@ -16,6 +17,10 @@ const OUTPUT_DIR = join(__dirname, "generated");
 const ROOT_DIR = resolve(__dirname);
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const PROMPT_CACHE_RETENTION = process.env.OPENAI_PROMPT_CACHE_RETENTION || "in_memory";
+const SESSION_COOKIE = "makeflow_session";
+const OAUTH_STATE_COOKIE = "makeflow_oauth_state";
+const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
+const STATE_TTL_SECONDS = 10 * 60;
 const DESIGN_TYPES = new Map([
   ["mechanical", "Mechanical Design"],
   ["electrical", "Electrical Design"],
@@ -31,6 +36,15 @@ const mimeTypes = {
   ".json": "application/json; charset=utf-8",
   ".md": "text/markdown; charset=utf-8"
 };
+
+const PROTECTED_API_PATHS = new Set([
+  "/api/inspect-spec",
+  "/api/generate-prd",
+  "/api/update-prd",
+  "/api/analyze-feasibility",
+  "/api/generate-design",
+  "/api/estimate-design-pricing"
+]);
 
 listen(PORT);
 
@@ -833,12 +847,21 @@ async function serveStatic(pathname, response, headOnly) {
   }
 }
 
-function sendJson(response, status, payload) {
+function sendJson(response, status, payload, extraHeaders = {}) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*"
+    "Access-Control-Allow-Origin": "*",
+    ...extraHeaders
   });
   response.end(JSON.stringify(payload));
+}
+
+function sendRedirect(response, location, cookies = []) {
+  const headers = { Location: location };
+  if (cookies.length === 1) headers["Set-Cookie"] = cookies[0];
+  else if (cookies.length > 1) headers["Set-Cookie"] = cookies;
+  response.writeHead(302, headers);
+  response.end();
 }
 
 function slugify(value) {
@@ -850,6 +873,291 @@ function slugify(value) {
 
 function relativeLocalPath(filePath) {
   return filePath.replace(`${__dirname}/`, "");
+}
+
+function getSessionSecret() {
+  return process.env.SESSION_SECRET || "";
+}
+
+function getGoogleCredentials() {
+  return {
+    clientId: process.env.GOOGLE_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || ""
+  };
+}
+
+function getAppBaseUrl(request) {
+  if (process.env.APP_BASE_URL) {
+    return process.env.APP_BASE_URL.replace(/\/$/, "");
+  }
+
+  const host = request.headers.host || `localhost:${PORT}`;
+  const forwarded = request.headers["x-forwarded-proto"];
+  const proto = forwarded
+    ? String(forwarded).split(",")[0].trim()
+    : host.includes("localhost") || host.startsWith("127.0.0.1")
+      ? "http"
+      : "https";
+  return `${proto}://${host}`;
+}
+
+function isSecureRequest(request) {
+  const base = process.env.APP_BASE_URL || "";
+  if (base.startsWith("https://")) return true;
+  const forwarded = request.headers["x-forwarded-proto"];
+  return forwarded
+    ? String(forwarded).split(",")[0].trim() === "https"
+    : false;
+}
+
+function parseCookies(header) {
+  const cookies = {};
+  if (!header) return cookies;
+
+  for (const part of String(header).split(";")) {
+    const index = part.indexOf("=");
+    if (index === -1) continue;
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (!key) continue;
+    try {
+      cookies[key] = decodeURIComponent(value);
+    } catch {
+      cookies[key] = value;
+    }
+  }
+
+  return cookies;
+}
+
+function buildCookie(name, value, { maxAge, secure = false } = {}) {
+  const parts = [
+    `${name}=${encodeURIComponent(value)}`,
+    "Path=/",
+    "SameSite=Lax",
+    "HttpOnly"
+  ];
+  if (secure) parts.push("Secure");
+  if (typeof maxAge === "number") parts.push(`Max-Age=${maxAge}`);
+  return parts.join("; ");
+}
+
+function clearCookie(name, { secure = false } = {}) {
+  return buildCookie(name, "", { maxAge: 0, secure });
+}
+
+function signPayload(payload) {
+  const secret = getSessionSecret();
+  if (!secret) throw new Error("SESSION_SECRET is not set.");
+  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const signature = createHmac("sha256", secret).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function verifySignedValue(value) {
+  const secret = getSessionSecret();
+  if (!secret || !value || typeof value !== "string") return null;
+
+  const [encoded, signature] = value.split(".");
+  if (!encoded || !signature) return null;
+
+  const expected = createHmac("sha256", secret).update(encoded).digest("base64url");
+  const providedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (
+    providedBuffer.length !== expectedBuffer.length
+    || !timingSafeEqual(providedBuffer, expectedBuffer)
+  ) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    if (!payload || typeof payload !== "object") return null;
+    if (!Number.isFinite(payload.exp) || payload.exp < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function getUserFromRequest(request) {
+  const cookies = parseCookies(request.headers.cookie);
+  const session = verifySignedValue(cookies[SESSION_COOKIE]);
+  if (!session?.sub) return null;
+
+  return {
+    id: String(session.sub),
+    email: typeof session.email === "string" ? session.email : "",
+    name: typeof session.name === "string" ? session.name : "",
+    picture: typeof session.picture === "string" ? session.picture : ""
+  };
+}
+
+function requireAuth(request, response) {
+  const user = getUserFromRequest(request);
+  if (!user) {
+    sendJson(response, 401, { error: "Authentication required" });
+    return null;
+  }
+  return user;
+}
+
+function authConfigError() {
+  const { clientId, clientSecret } = getGoogleCredentials();
+  if (!clientId || !clientSecret) {
+    return "Google auth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.";
+  }
+  if (!getSessionSecret()) {
+    return "SESSION_SECRET is not set.";
+  }
+  return "";
+}
+
+function handleAuthGoogleStart(request, response) {
+  const configError = authConfigError();
+  if (configError) {
+    sendJson(response, 500, { error: configError });
+    return;
+  }
+
+  const { clientId } = getGoogleCredentials();
+  const baseUrl = getAppBaseUrl(request);
+  const redirectUri = `${baseUrl}/api/auth/google/callback`;
+  const state = randomBytes(24).toString("hex");
+  const secure = isSecureRequest(request);
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    access_type: "online",
+    prompt: "select_account"
+  });
+
+  sendRedirect(
+    response,
+    `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+    [buildCookie(OAUTH_STATE_COOKIE, state, { maxAge: STATE_TTL_SECONDS, secure })]
+  );
+}
+
+async function handleAuthGoogleCallback(request, response, url) {
+  const configError = authConfigError();
+  if (configError) {
+    sendJson(response, 500, { error: configError });
+    return;
+  }
+
+  const errorParam = url.searchParams.get("error");
+  if (errorParam) {
+    sendJson(response, 400, {
+      error: `Google sign-in was cancelled or failed (${errorParam}).`
+    });
+    return;
+  }
+
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const cookies = parseCookies(request.headers.cookie);
+  const expectedState = cookies[OAUTH_STATE_COOKIE];
+  const secure = isSecureRequest(request);
+  const baseUrl = getAppBaseUrl(request);
+  const redirectUri = `${baseUrl}/api/auth/google/callback`;
+
+  if (!code || !state || !expectedState || state !== expectedState) {
+    sendJson(response, 400, { error: "Invalid OAuth state or missing authorization code." }, {
+      "Set-Cookie": clearCookie(OAUTH_STATE_COOKIE, { secure })
+    });
+    return;
+  }
+
+  const { clientId, clientSecret } = getGoogleCredentials();
+
+  let tokenPayload;
+  try {
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code"
+      })
+    });
+    tokenPayload = await tokenResponse.json();
+    if (!tokenResponse.ok || !tokenPayload.access_token) {
+      throw new Error(tokenPayload.error_description || tokenPayload.error || "Token exchange failed.");
+    }
+  } catch (error) {
+    sendJson(response, 502, {
+      error: error.message || "Failed to exchange Google authorization code."
+    }, {
+      "Set-Cookie": clearCookie(OAUTH_STATE_COOKIE, { secure })
+    });
+    return;
+  }
+
+  let profile;
+  try {
+    const profileResponse = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: {
+        Authorization: `Bearer ${tokenPayload.access_token}`
+      }
+    });
+    profile = await profileResponse.json();
+    if (!profileResponse.ok || !profile.sub) {
+      throw new Error(profile.error_description || profile.error || "Failed to load Google profile.");
+    }
+  } catch (error) {
+    sendJson(response, 502, {
+      error: error.message || "Failed to load Google user profile."
+    }, {
+      "Set-Cookie": clearCookie(OAUTH_STATE_COOKIE, { secure })
+    });
+    return;
+  }
+
+  const sessionValue = signPayload({
+    sub: profile.sub,
+    email: profile.email || "",
+    name: profile.name || profile.email || "User",
+    picture: profile.picture || "",
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS
+  });
+
+  sendRedirect(response, `${baseUrl}/`, [
+    buildCookie(SESSION_COOKIE, sessionValue, {
+      maxAge: SESSION_TTL_SECONDS,
+      secure
+    }),
+    clearCookie(OAUTH_STATE_COOKIE, { secure })
+  ]);
+}
+
+function handleAuthMe(request, response) {
+  const user = getUserFromRequest(request);
+  if (!user) {
+    sendJson(response, 401, { error: "Not authenticated" });
+    return;
+  }
+  sendJson(response, 200, { user });
+}
+
+function handleAuthLogout(request, response) {
+  const secure = isSecureRequest(request);
+  response.writeHead(204, {
+    "Set-Cookie": clearCookie(SESSION_COOKIE, { secure })
+  });
+  response.end();
 }
 
 function listen(port, attempts = 0) {
@@ -870,6 +1178,10 @@ function listen(port, attempts = 0) {
     console.log("API keys visible to server:");
     console.log("  OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "set" : "NOT SET");
     console.log("  XAI_API_KEY:", process.env.XAI_API_KEY ? "set" : "NOT SET");
+    console.log("  GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID ? "set" : "NOT SET");
+    console.log("  GOOGLE_CLIENT_SECRET:", process.env.GOOGLE_CLIENT_SECRET ? "set" : "NOT SET");
+    console.log("  SESSION_SECRET:", process.env.SESSION_SECRET ? "set" : "NOT SET");
+    console.log("  APP_BASE_URL:", process.env.APP_BASE_URL || "(derived from request)");
   });
 }
 
@@ -877,8 +1189,44 @@ async function handleRequest(request, response) {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
 
+    if (url.pathname === "/api/auth/google") {
+      if (request.method !== "GET") {
+        sendJson(response, 405, { error: "Method not allowed" }, { Allow: "GET" });
+        return;
+      }
+      handleAuthGoogleStart(request, response);
+      return;
+    }
+
+    if (url.pathname === "/api/auth/google/callback") {
+      if (request.method !== "GET") {
+        sendJson(response, 405, { error: "Method not allowed" }, { Allow: "GET" });
+        return;
+      }
+      await handleAuthGoogleCallback(request, response, url);
+      return;
+    }
+
+    if (url.pathname === "/api/auth/me") {
+      if (request.method !== "GET") {
+        sendJson(response, 405, { error: "Method not allowed" }, { Allow: "GET" });
+        return;
+      }
+      handleAuthMe(request, response);
+      return;
+    }
+
+    if (url.pathname === "/api/auth/logout") {
+      if (request.method !== "POST") {
+        sendJson(response, 405, { error: "Method not allowed" }, { Allow: "POST" });
+        return;
+      }
+      handleAuthLogout(request, response);
+      return;
+    }
+
     // Handle API routes first
-    if (url.pathname === "/api/inspect-spec" || url.pathname === "/api/generate-prd" || url.pathname === "/api/update-prd" || url.pathname === "/api/analyze-feasibility" || url.pathname === "/api/generate-design" || url.pathname === "/api/estimate-design-pricing") {
+    if (PROTECTED_API_PATHS.has(url.pathname)) {
       if (request.method === "OPTIONS") {
         response.writeHead(204, {
           "Access-Control-Allow-Origin": "*",
@@ -890,6 +1238,8 @@ async function handleRequest(request, response) {
         return;
       }
       if (request.method === "POST" || (url.pathname === "/api/analyze-feasibility" && request.method === "GET")) {
+        if (!requireAuth(request, response)) return;
+
         if (url.pathname === "/api/inspect-spec") {
           await handleInspectSpec(request, response);
           return;

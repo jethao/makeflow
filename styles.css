@@ -134,6 +134,7 @@ svg {
 }
 
 .avatar-button {
+  position: relative;
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -141,6 +142,216 @@ svg {
   color: #fff;
   font-size: 13px;
   font-weight: 750;
+  overflow: hidden;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  min-width: 220px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.user-menu-identity {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+
+.user-menu-identity strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.user-menu-identity span {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.user-menu-item {
+  width: 100%;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.user-menu-item:hover,
+.user-menu-item:focus {
+  background: var(--surface-soft);
+}
+
+.landing-view {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top right, rgba(21, 91, 216, 0.12), transparent 42%),
+    linear-gradient(180deg, #f8fafc 0%, var(--bg) 100%);
+}
+
+.landing-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px;
+}
+
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.landing-brand h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 750;
+}
+
+.landing-logo-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), #5b8def);
+  box-shadow: 0 8px 18px rgba(21, 91, 216, 0.28);
+}
+
+.landing-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.landing-auth-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.landing-hero {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 72px 28px 96px;
+}
+
+.landing-eyebrow {
+  margin: 0 0 12px;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.landing-hero h2 {
+  margin: 0;
+  font-size: clamp(34px, 5vw, 48px);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.landing-lead {
+  margin: 18px 0 0;
+  max-width: 640px;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.landing-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.google-auth-button .google-mark {
+  width: 18px;
+  height: 18px;
+  stroke: none;
+}
+
+.google-auth-button .google-mark path {
+  stroke: none;
+}
+
+.landing-points {
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+
+.landing-points li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.landing-points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue);
+}
+
+@media (max-width: 720px) {
+  .landing-topbar {
+    padding: 16px 18px;
+  }
+
+  .landing-hero {
+    padding: 48px 18px 72px;
+  }
+
+  .landing-top-actions .secondary-button {
+    display: none;
+  }
+
+  .landing-cta-row {
+    flex-direction: column;
+  }
+
+  .landing-cta-row .primary-button,
+  .landing-cta-row .secondary-button {
+    width: 100%;
+  }
 }
 
 .workspace {
