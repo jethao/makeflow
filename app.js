@@ -1280,6 +1280,7 @@ productNameInput.addEventListener("input", () => {
   const product = activeProduct();
   if (!product) return;
   product.productName = productNameInput.value.trim();
+  if (topbarProductLabel) topbarProductLabel.textContent = productDisplayName(product);
   persist();
 });
 
@@ -2256,14 +2257,10 @@ function hasLegacyProductData(saved) {
 }
 
 function productDisplayName(product) {
-  if (product.productName && product.productName.trim()) {
-    return summarizeContext(product.productName);
-  }
-  const description = product.checklistContexts?.[0]?.[0]?.trim();
-  if (description) return summarizeContext(description);
-  if (product.productType) return product.productType;
-  const index = state.products.findIndex((item) => item.id === product.id);
-  return `Product ${index + 1}`;
+  const name = typeof product?.productName === "string" ? product.productName.trim() : "";
+  // Dashboard and navigation always use the Spec-stage product name field.
+  // Never fall back to "Product 1", "Product 2", etc.
+  return name ? summarizeContext(name) : "Untitled product";
 }
 
 function productCompletionPercent(product) {
