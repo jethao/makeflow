@@ -102,6 +102,7 @@ const stages = [
 ];
 
 const STORAGE_KEY = "makeflow-state-v1";
+const WORKSPACE_SYNC_DEBOUNCE_MS = 600;
 const defaultDates = stages.map((stage) => parseDisplayDate(stage.target));
 const FEATURE_TEMPLATE = `Use case:
 
@@ -113,10 +114,15 @@ Acceptance criteria (create test cases):
 
 Metrics:`;
 
-const state = loadState();
+let state = loadState();
 let selectedIndex = Math.min(activeProduct()?.selectedIndex || 0, stages.length - 1);
 let currentUser = null;
 let appBootstrapped = false;
+let workspaceSyncTimer = null;
+let workspaceSyncInFlight = false;
+let workspaceSyncQueued = false;
+let cloudSyncEnabled = false;
+let shareViewActive = false;
 
 const landingView = document.querySelector("#landingView");
 const appShell = document.querySelector("#appShell");
@@ -291,6 +297,141 @@ function persist() {
   const product = activeProduct();
   if (product) product.selectedIndex = selectedIndex;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  scheduleWorkspaceSync();
+}
+
+function scheduleWorkspaceSync() {
+  if (!cloudSyncEnabled || !currentUser) return;
+  workspaceSyncQueued = true;
+  if (workspaceSyncTimer) clearTimeout(workspaceSyncTimer);
+  workspaceSyncTimer = setTimeout(() => {
+    workspaceSyncTimer = null;
+    syncWorkspaceToServer();
+  }, WORKSPACE_SYNC_DEBOUNCE_MS);
+}
+
+async function syncWorkspaceToServer() {
+  if (!cloudSyncEnabled || !currentUser) return;
+  if (workspaceSyncInFlight) {
+    workspaceSyncQueued = true;
+    return;
+  }
+
+  workspaceSyncQueued = false;
+  workspaceSyncInFlight = true;
+  try {
+    const response = await fetch("/api/workspace", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        selectedProductId: state.selectedProductId,
+        products: state.products
+      })
+    });
+
+    if (response.status === 401) {
+      cloudSyncEnabled = false;
+      showLanding();
+      return;
+    }
+
+    if (!response.ok) {
+      console.warn("Workspace sync failed", response.status);
+    }
+  } catch (error) {
+    console.warn("Workspace sync network error", error);
+  } finally {
+    workspaceSyncInFlight = false;
+    if (workspaceSyncQueued) {
+      workspaceSyncQueued = false;
+      await syncWorkspaceToServer();
+    }
+  }
+}
+
+async function flushWorkspaceSync() {
+  if (workspaceSyncTimer) {
+    clearTimeout(workspaceSyncTimer);
+    workspaceSyncTimer = null;
+  }
+  workspaceSyncQueued = true;
+  await syncWorkspaceToServer();
+}
+
+function applyWorkspace(workspace) {
+  const products = Array.isArray(workspace?.products)
+    ? workspace.products.map(normalizeProduct).filter(Boolean)
+    : [];
+
+  state = {
+    products,
+    selectedProductId: products.some((product) => product.id === workspace?.selectedProductId)
+      ? workspace.selectedProductId
+      : null
+  };
+
+  selectedIndex = Math.min(activeProduct()?.selectedIndex || 0, stages.length - 1);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+async function loadCloudWorkspace() {
+  const response = await fetch("/api/workspace", {
+    credentials: "same-origin"
+  });
+
+  if (response.status === 401) {
+    throw new Error("unauthorized");
+  }
+  if (!response.ok) {
+    throw new Error(`workspace_load_failed_${response.status}`);
+  }
+
+  const workspace = await response.json();
+  const serverEmpty = !Array.isArray(workspace?.products) || workspace.products.length === 0;
+  const local = loadState();
+
+  if (serverEmpty && local.products.length > 0) {
+    const migrateResponse = await fetch("/api/workspace", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        selectedProductId: local.selectedProductId,
+        products: local.products
+      })
+    });
+    if (!migrateResponse.ok) {
+      throw new Error(`workspace_migrate_failed_${migrateResponse.status}`);
+    }
+    const migrated = await migrateResponse.json();
+    applyWorkspace(migrated);
+    return;
+  }
+
+  applyWorkspace(workspace);
+}
+
+async function importTemplateById(templateId) {
+  const response = await fetch("/api/workspace/import-template", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ templateId })
+  });
+
+  if (response.status === 401) {
+    showLanding();
+    return null;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `Unable to import template (HTTP ${response.status})`);
+  }
+
+  if (payload.workspace) applyWorkspace(payload.workspace);
+  return payload;
 }
 
 function activeProduct() {
@@ -859,6 +1000,220 @@ function renderDashboard() {
       </article>
     `;
   }).join("");
+}
+
+async function loadLandingTemplates() {
+  const grid = document.querySelector("#landingTemplateGrid");
+  if (!grid) return;
+
+  try {
+    const response = await fetch("/api/templates");
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(payload.templates)) {
+      grid.innerHTML = `<p class="template-empty">Templates unavailable right now.</p>`;
+      return;
+    }
+
+    grid.innerHTML = payload.templates.map((template) => `
+      <article class="template-card">
+        <div>
+          <h3>${escapeHtml(template.title)}</h3>
+          <p>${escapeHtml(template.description || "")}</p>
+          <div class="template-tags">
+            ${(template.tags || []).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
+          </div>
+        </div>
+        <div class="template-card-actions">
+          <a class="secondary-button" href="/api/templates/${encodeURIComponent(template.id)}/download">Download</a>
+          <a class="primary-button" href="/api/auth/google?importTemplate=${encodeURIComponent(template.id)}">Use template</a>
+        </div>
+      </article>
+    `).join("");
+  } catch {
+    grid.innerHTML = `<p class="template-empty">Templates unavailable right now.</p>`;
+  }
+}
+
+async function openTemplatePicker() {
+  let modal = document.getElementById("templatePickerModal");
+  if (!modal) {
+    document.body.insertAdjacentHTML("beforeend", `
+      <div id="templatePickerModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="templatePickerTitle">
+        <section class="modal-panel template-picker-panel">
+          <div class="modal-header">
+            <div>
+              <span>Templates</span>
+              <h3 id="templatePickerTitle">Start from a template</h3>
+            </div>
+            <button id="templatePickerCloseButton" class="icon-button" type="button" aria-label="Close templates">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div id="templatePickerList" class="template-picker-list"></div>
+        </section>
+      </div>
+    `);
+    modal = document.getElementById("templatePickerModal");
+    document.getElementById("templatePickerCloseButton")?.addEventListener("click", () => {
+      modal.classList.add("is-hidden");
+    });
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) modal.classList.add("is-hidden");
+    });
+  }
+
+  const list = document.getElementById("templatePickerList");
+  list.innerHTML = `<p class="template-empty">Loading templates…</p>`;
+  modal.classList.remove("is-hidden");
+
+  try {
+    const response = await fetch("/api/templates");
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(payload.templates) || payload.templates.length === 0) {
+      list.innerHTML = `<p class="template-empty">No templates available.</p>`;
+      return;
+    }
+
+    list.innerHTML = payload.templates.map((template) => `
+      <article class="template-picker-item">
+        <div>
+          <strong>${escapeHtml(template.title)}</strong>
+          <p>${escapeHtml(template.description || "")}</p>
+        </div>
+        <div class="template-card-actions">
+          <a class="secondary-button" href="/api/templates/${encodeURIComponent(template.id)}/download">Download</a>
+          <button class="primary-button" type="button" data-import-template-id="${escapeHtml(template.id)}">Use template</button>
+        </div>
+      </article>
+    `).join("");
+
+    list.querySelectorAll("[data-import-template-id]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const result = await importTemplateById(button.dataset.importTemplateId);
+          modal.classList.add("is-hidden");
+          if (result?.productId) openProduct(result.productId);
+          else render();
+        } catch (error) {
+          alert(error.message || "Template import failed.");
+          button.disabled = false;
+        }
+      });
+    });
+  } catch {
+    list.innerHTML = `<p class="template-empty">Templates unavailable right now.</p>`;
+  }
+}
+
+async function maybeImportTemplateFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const templateId = params.get("importTemplate");
+  if (!templateId) return;
+
+  params.delete("importTemplate");
+  const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash || ""}`;
+  window.history.replaceState({}, "", next);
+
+  try {
+    const result = await importTemplateById(templateId);
+    if (result?.productId) openProduct(result.productId);
+  } catch (error) {
+    alert(error.message || "Template import failed.");
+  }
+}
+
+function getShareTokenFromPath() {
+  const match = window.location.pathname.match(/^\/share\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+async function bootstrapShareView(token) {
+  shareViewActive = true;
+  if (landingView) landingView.classList.add("is-hidden");
+  if (appShell) appShell.classList.add("is-hidden");
+
+  let shareRoot = document.getElementById("shareView");
+  if (!shareRoot) {
+    document.body.insertAdjacentHTML("beforeend", `
+      <div id="shareView" class="share-view">
+        <header class="share-topbar">
+          <div class="landing-brand">
+            <span class="landing-logo-mark" aria-hidden="true"></span>
+            <h1>Makeflow</h1>
+          </div>
+          <a class="primary-button" href="/">Open Makeflow</a>
+        </header>
+        <main id="shareViewMain" class="share-main">
+          <p class="template-empty">Loading shared design…</p>
+        </main>
+      </div>
+    `);
+    shareRoot = document.getElementById("shareView");
+  }
+
+  const main = document.getElementById("shareViewMain");
+  try {
+    const response = await fetch(`/api/shares/${encodeURIComponent(token)}`);
+    const share = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      main.innerHTML = `<section class="share-error"><h2>Share not found</h2><p>${escapeHtml(share.error || "This design link is invalid or was removed.")}</p></section>`;
+      return;
+    }
+
+    const outputs = share.designOutputs || {};
+    const keys = Object.keys(outputs);
+    main.innerHTML = `
+      <section class="share-hero">
+        <p class="landing-eyebrow">Shared design package</p>
+        <h2>${escapeHtml(share.productName || "Design package")}</h2>
+        <p class="landing-lead">
+          ${escapeHtml(share.productType || "Hardware design")}
+          ${share.createdBy?.name ? ` · Shared by ${escapeHtml(share.createdBy.name)}` : ""}
+        </p>
+      </section>
+      <section class="share-output-grid">
+        ${keys.map((key) => `
+          <article class="share-output-card" data-share-key="${escapeHtml(key)}">
+            <button class="design-output-button" type="button" data-share-open="${escapeHtml(key)}">
+              <strong>${escapeHtml(outputs[key].title || key)}</strong>
+              <span>View</span>
+            </button>
+          </article>
+        `).join("")}
+      </section>
+      <div id="shareDocPanel" class="share-doc-panel is-hidden">
+        <div class="share-doc-header">
+          <h3 id="shareDocTitle"></h3>
+          <button id="shareDocClose" class="secondary-button" type="button">Close</button>
+        </div>
+        <div id="shareDocContent" class="design-prd-content prd-markdown"></div>
+      </div>
+    `;
+
+    const openShareDoc = (key) => {
+      const output = outputs[key];
+      if (!output) return;
+      const panel = document.getElementById("shareDocPanel");
+      const title = document.getElementById("shareDocTitle");
+      const content = document.getElementById("shareDocContent");
+      title.textContent = output.title || key;
+      content.innerHTML = renderMarkdown(output.content || "");
+      panel.classList.remove("is-hidden");
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    main.querySelectorAll("[data-share-open]").forEach((button) => {
+      button.addEventListener("click", () => openShareDoc(button.dataset.shareOpen));
+    });
+    document.getElementById("shareDocClose")?.addEventListener("click", () => {
+      document.getElementById("shareDocPanel")?.classList.add("is-hidden");
+    });
+
+    if (keys[0]) openShareDoc(keys[0]);
+  } catch {
+    main.innerHTML = `<section class="share-error"><h2>Unable to load share</h2><p>Check your connection and try again.</p></section>`;
+  }
 }
 
 function createAndOpenProduct() {
@@ -1653,6 +2008,7 @@ function initializeSpecController() {
     setPrdGenerationError: (value) => { prdGenerationError = value; },
     activeProduct,
     persist,
+    flushWorkspaceSync,
     render,
     logActivity,
     renderMarkdown,
@@ -1727,9 +2083,11 @@ function updateUserMenu() {
 
 function showLanding() {
   currentUser = null;
+  cloudSyncEnabled = false;
   if (landingView) landingView.classList.remove("is-hidden");
   if (appShell) appShell.classList.add("is-hidden");
   setUserMenuOpen(false);
+  loadLandingTemplates();
 }
 
 function showApp() {
@@ -1776,6 +2134,13 @@ function ensureAuthUiBound() {
 
 async function bootstrapApp() {
   ensureAuthUiBound();
+  ensureDashboardTemplateActions();
+
+  const shareToken = getShareTokenFromPath();
+  if (shareToken) {
+    await bootstrapShareView(shareToken);
+    return;
+  }
 
   try {
     const response = await fetch("/api/auth/me", {
@@ -1783,26 +2148,79 @@ async function bootstrapApp() {
     });
 
     if (!response.ok) {
+      cloudSyncEnabled = false;
       showLanding();
+      loadLandingTemplates();
       return;
     }
 
     const payload = await response.json();
     if (!payload?.user?.id) {
+      cloudSyncEnabled = false;
       showLanding();
+      loadLandingTemplates();
       return;
     }
 
     currentUser = payload.user;
     showApp();
 
+    try {
+      await loadCloudWorkspace();
+      cloudSyncEnabled = true;
+    } catch (error) {
+      if (String(error?.message) === "unauthorized") {
+        cloudSyncEnabled = false;
+        showLanding();
+        loadLandingTemplates();
+        return;
+      }
+      console.warn("Cloud workspace load failed; using local cache", error);
+      cloudSyncEnabled = true;
+    }
+
     if (!appBootstrapped) {
       initializeSpecController();
       appBootstrapped = true;
     }
+
+    await maybeImportTemplateFromQuery();
     render();
   } catch {
+    cloudSyncEnabled = false;
     showLanding();
+    loadLandingTemplates();
+  }
+}
+
+function ensureDashboardTemplateActions() {
+  if (document.getElementById("dashboardUseTemplateButton")) return;
+
+  const emptyDash = document.querySelector("#emptyDashboard");
+  if (emptyDash && !document.getElementById("emptyUseTemplateButton")) {
+    emptyDash.insertAdjacentHTML("beforeend", `
+      <p class="empty-dashboard-hint">or start from a starter template</p>
+      <button id="emptyUseTemplateButton" class="secondary-button" type="button">Use a template</button>
+    `);
+    document.getElementById("emptyUseTemplateButton")?.addEventListener("click", () => openTemplatePicker());
+  }
+
+  const header = document.querySelector(".dashboard-header > div:last-child, .dashboard-header");
+  const addButton = document.querySelector("#dashboardAddProductButton");
+  if (addButton && !document.getElementById("dashboardUseTemplateButton")) {
+    const wrap = document.createElement("div");
+    wrap.className = "dashboard-header-actions";
+    addButton.parentNode?.insertBefore(wrap, addButton);
+    wrap.appendChild(addButton);
+    const templateButton = document.createElement("button");
+    templateButton.id = "dashboardUseTemplateButton";
+    templateButton.className = "secondary-button";
+    templateButton.type = "button";
+    templateButton.textContent = "Use a template";
+    wrap.insertBefore(templateButton, addButton);
+    templateButton.addEventListener("click", () => openTemplatePicker());
+  } else if (header && !document.getElementById("dashboardUseTemplateButton")) {
+    // no-op fallback
   }
 }
 

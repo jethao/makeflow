@@ -1,0 +1,71 @@
+{
+  "templateMeta": {
+    "id": "smart-home-hub",
+    "title": "Smart home hub",
+    "description": "Always-on home gateway that bridges Wi-Fi, Thread/Zigbee, and a local rules engine for automation.",
+    "tags": ["smart-home", "gateway", "wifi", "matter"],
+    "version": "1"
+  },
+  "product": {
+    "productName": "Nestline Hub",
+    "productType": "Smart home / Gateway",
+    "formFactor": "Desktop puck, 95 mm diameter × 32 mm height",
+    "bomTarget": 65,
+    "completed": [false, false, false, false, false, false, false, false, false, false],
+    "checks": [[], [], [], [], [], [], [], [], [], []],
+    "checklistContexts": [
+      [
+        "Give households one reliable hub for lights, sensors, and locks without depending only on the cloud.",
+        "Homeowners and renters setting up multi-device automation.",
+        "",
+        "Ethernet + Wi-Fi, Thread/Zigbee radio, Matter controller path, fanless thermal design, BOM under $70.",
+        "Mobile onboarding app, local rules engine, optional remote access via account.",
+        "Radio certifications (FCC/CE) and Matter certification path for controller role.",
+        "Easy setup, local automations when internet drops, broad device compatibility, quiet always-on design.",
+        "MVP: onboarding, local scenes, mobile remote access; voice assistants as phase 2."
+      ],
+      ["", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""]
+    ],
+    "checklistFeatures": [
+      [
+        [],
+        [],
+        [
+          "Use case: One-app device onboarding\n\nHow to use: Plug in hub, open app, follow QR setup.\n\nOperating condition: Home Wi-Fi required for first setup.\n\nAcceptance criteria: First device paired in ≤ 5 minutes for 90% of trials.\n\nMetrics: Setup completion rate, support tickets per activation.",
+          "Use case: Local automations\n\nHow to use: Create scenes in app; hub executes locally.\n\nOperating condition: Devices already paired to hub radio.\n\nAcceptance criteria: Scene executes offline within 1 second of trigger.\n\nMetrics: Offline scene success rate, mean rule latency."
+        ],
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      [[], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []]
+    ],
+    "designOutputs": {},
+    "designCostEstimate": null,
+    "activity": [
+      {
+        "message": "Template seed: Smart home hub",
+        "timestamp": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "selectedIndex": 0
+  }
+}

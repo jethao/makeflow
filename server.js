@@ -9,16 +9,22 @@ import {
   buildIndustrialRenderingPromptInstruction,
   parseGeneratedDesignResponse
 } from "./industrial-rendering-core.js";
+import { createShareStore } from "./share-store.js";
+import { createTemplateCatalog } from "./template-catalog.js";
+import { cloneTemplateProduct, createWorkspaceStore } from "./workspace-store.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT || 4173);
 const MAX_PORT_ATTEMPTS = 20;
-const OUTPUT_DIR = join(__dirname, "generated");
 const ROOT_DIR = resolve(__dirname);
+const DATA_DIR = resolve(process.env.DATA_DIR || join(__dirname, "data"));
+const TEMPLATES_DIR = join(__dirname, "templates");
+const LEGACY_OUTPUT_DIR = join(__dirname, "generated");
 const DEFAULT_MODEL = "gpt-5.4-mini";
 const PROMPT_CACHE_RETENTION = process.env.OPENAI_PROMPT_CACHE_RETENTION || "in_memory";
 const SESSION_COOKIE = "makeflow_session";
 const OAUTH_STATE_COOKIE = "makeflow_oauth_state";
+const PENDING_TEMPLATE_COOKIE = "makeflow_pending_template";
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STATE_TTL_SECONDS = 10 * 60;
 const DESIGN_TYPES = new Map([
@@ -28,6 +34,10 @@ const DESIGN_TYPES = new Map([
   ["industrial", "Industrial Design"],
   ["test", "Test Spec"]
 ]);
+
+const workspaceStore = createWorkspaceStore({ dataDir: DATA_DIR });
+const shareStore = createShareStore({ dataDir: DATA_DIR });
+const templateCatalog = createTemplateCatalog({ templatesDir: TEMPLATES_DIR });
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -43,12 +53,25 @@ const PROTECTED_API_PATHS = new Set([
   "/api/update-prd",
   "/api/analyze-feasibility",
   "/api/generate-design",
-  "/api/estimate-design-pricing"
+  "/api/estimate-design-pricing",
+  "/api/workspace",
+  "/api/workspace/import-template",
+  "/api/shares"
 ]);
 
 listen(PORT);
 
-async function handleInspectSpec(request, response) {
+async function ensureOutputDir(user) {
+  const dir = user?.id ? workspaceStore.generatedDir(user.id) : LEGACY_OUTPUT_DIR;
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
+function createServerProductId() {
+  return randomBytes(16).toString("hex");
+}
+
+async function handleInspectSpec(request, response, _user) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
@@ -78,7 +101,7 @@ async function handleInspectSpec(request, response) {
   });
 }
 
-async function handleGeneratePrd(request, response) {
+async function handleGeneratePrd(request, response, user) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
@@ -92,14 +115,14 @@ async function handleGeneratePrd(request, response) {
     return;
   }
 
-  await mkdir(OUTPUT_DIR, { recursive: true });
+  const outputDir = await ensureOutputDir(user);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const slug = slugify(payload.stage?.name || "prd");
   const inputFilename = `${timestamp}-${slug}-input.json`;
   const outputFilename = `${timestamp}-${slug}-prd.md`;
-  const inputPath = join(OUTPUT_DIR, inputFilename);
-  const outputPath = join(OUTPUT_DIR, outputFilename);
+  const inputPath = join(outputDir, inputFilename);
+  const outputPath = join(outputDir, outputFilename);
 
   const inputDocument = {
     generatedAt: new Date().toISOString(),
@@ -130,7 +153,7 @@ async function handleGeneratePrd(request, response) {
   });
 }
 
-async function handleUpdatePrd(request, response) {
+async function handleUpdatePrd(request, response, user) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
@@ -148,13 +171,13 @@ async function handleUpdatePrd(request, response) {
     return;
   }
 
-  await mkdir(OUTPUT_DIR, { recursive: true });
+  const outputDir = await ensureOutputDir(user);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const inputFilename = `${timestamp}-prd-update-input.json`;
   const outputFilename = `${timestamp}-prd-updated.md`;
-  const inputPath = join(OUTPUT_DIR, inputFilename);
-  const outputPath = join(OUTPUT_DIR, outputFilename);
+  const inputPath = join(outputDir, inputFilename);
+  const outputPath = join(outputDir, outputFilename);
 
   const inputDocument = {
     generatedAt: new Date().toISOString(),
@@ -195,7 +218,7 @@ async function handleUpdatePrd(request, response) {
   });
 }
 
-async function handleAnalyzeFeasibility(request, response) {
+async function handleAnalyzeFeasibility(request, response, user) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
@@ -214,11 +237,11 @@ async function handleAnalyzeFeasibility(request, response) {
     return;
   }
 
-  await mkdir(OUTPUT_DIR, { recursive: true });
+  const outputDir = await ensureOutputDir(user);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const inputPath = join(OUTPUT_DIR, `${timestamp}-feasibility-input.json`);
-  const outputPath = join(OUTPUT_DIR, `${timestamp}-feasibility-analysis.json`);
+  const inputPath = join(outputDir, `${timestamp}-feasibility-input.json`);
+  const outputPath = join(outputDir, `${timestamp}-feasibility-analysis.json`);
   const inputDocument = {
     generatedAt: new Date().toISOString(),
     source: "Makeflow",
@@ -248,7 +271,7 @@ async function handleAnalyzeFeasibility(request, response) {
   });
 }
 
-async function handleGenerateDesign(request, response) {
+async function handleGenerateDesign(request, response, user) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
@@ -267,11 +290,11 @@ async function handleGenerateDesign(request, response) {
     return;
   }
 
-  await mkdir(OUTPUT_DIR, { recursive: true });
+  const outputDir = await ensureOutputDir(user);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const inputPath = join(OUTPUT_DIR, `${timestamp}-${designType}-design-input.json`);
-  const outputPath = join(OUTPUT_DIR, `${timestamp}-${designType}-design.md`);
+  const inputPath = join(outputDir, `${timestamp}-${designType}-design-input.json`);
+  const outputPath = join(outputDir, `${timestamp}-${designType}-design.md`);
   const inputDocument = {
     generatedAt: new Date().toISOString(),
     source: "Makeflow",
@@ -307,7 +330,7 @@ async function handleGenerateDesign(request, response) {
   });
 }
 
-async function handleEstimateDesignPricing(request, response) {
+async function handleEstimateDesignPricing(request, response, user) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     sendJson(response, 500, { error: "OPENAI_API_KEY is not set in the environment." });
@@ -320,11 +343,11 @@ async function handleEstimateDesignPricing(request, response) {
     return;
   }
 
-  await mkdir(OUTPUT_DIR, { recursive: true });
+  const outputDir = await ensureOutputDir(user);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const inputPath = join(OUTPUT_DIR, `${timestamp}-design-pricing-input.json`);
-  const outputPath = join(OUTPUT_DIR, `${timestamp}-design-pricing.json`);
+  const inputPath = join(outputDir, `${timestamp}-design-pricing-input.json`);
+  const outputPath = join(outputDir, `${timestamp}-design-pricing.json`);
   const inputDocument = {
     generatedAt: new Date().toISOString(),
     source: "Makeflow",
@@ -798,12 +821,14 @@ function stripJsonEnvelope(text) {
     .replace(/\s*```$/i, "");
 }
 
-async function readJsonBody(request) {
+async function readJsonBody(request, maxBytes = 1_000_000) {
   let body = "";
   for await (const chunk of request) {
     body += chunk;
-    if (body.length > 1_000_000) {
-      throw new Error("Request body is too large.");
+    if (body.length > maxBytes) {
+      const error = new Error("Request body is too large.");
+      error.code = "BODY_TOO_LARGE";
+      throw error;
     }
   }
 
@@ -983,6 +1008,151 @@ function verifySignedValue(value) {
   }
 }
 
+async function handleGetWorkspace(request, response, user) {
+  const workspace = await workspaceStore.readWorkspace(user.id);
+  sendJson(response, 200, workspace);
+}
+
+async function handlePutWorkspace(request, response, user) {
+  let payload;
+  try {
+    payload = await readJsonBody(request, workspaceStore.MAX_WORKSPACE_BYTES);
+  } catch (error) {
+    if (error?.code === "BODY_TOO_LARGE") {
+      sendJson(response, 413, { error: error.message });
+      return;
+    }
+    throw error;
+  }
+
+  if (!payload || typeof payload !== "object" || !Array.isArray(payload.products)) {
+    sendJson(response, 400, { error: "products (array) is required." });
+    return;
+  }
+
+  try {
+    const saved = await workspaceStore.writeWorkspace(user.id, payload);
+    sendJson(response, 200, saved);
+  } catch (error) {
+    if (error?.code === "WORKSPACE_TOO_LARGE") {
+      sendJson(response, 413, { error: error.message });
+      return;
+    }
+    throw error;
+  }
+}
+
+async function handleImportTemplate(request, response, user) {
+  const payload = await readJsonBody(request);
+  const templateId = typeof payload?.templateId === "string" ? payload.templateId : "";
+  if (!templateId) {
+    sendJson(response, 400, { error: "templateId (string) is required." });
+    return;
+  }
+
+  const template = await templateCatalog.getTemplate(templateId);
+  if (!template) {
+    sendJson(response, 404, { error: "Template not found." });
+    return;
+  }
+
+  const workspace = await workspaceStore.readWorkspace(user.id);
+  const product = cloneTemplateProduct(template, createServerProductId);
+  workspace.products.push(product);
+  workspace.selectedProductId = product.id;
+  const saved = await workspaceStore.writeWorkspace(user.id, workspace);
+  sendJson(response, 200, {
+    workspace: saved,
+    productId: product.id,
+    template: {
+      id: template.templateMeta.id,
+      title: template.templateMeta.title
+    }
+  });
+}
+
+async function handleCreateShare(request, response, user) {
+  const payload = await readJsonBody(request);
+  const productId = typeof payload?.productId === "string" ? payload.productId : "";
+  if (!productId) {
+    sendJson(response, 400, { error: "productId (string) is required." });
+    return;
+  }
+
+  const workspace = await workspaceStore.readWorkspace(user.id);
+  const product = workspace.products.find((item) => item.id === productId);
+  if (!product) {
+    sendJson(response, 404, { error: "Product not found in workspace." });
+    return;
+  }
+
+  try {
+    const share = await shareStore.createShare({
+      product,
+      user,
+      baseUrl: getAppBaseUrl(request)
+    });
+    sendJson(response, 201, share);
+  } catch (error) {
+    if (error?.code === "NO_DESIGNS") {
+      sendJson(response, 400, { error: error.message });
+      return;
+    }
+    throw error;
+  }
+}
+
+async function handleGetShare(request, response, token) {
+  const share = await shareStore.readShare(token);
+  if (!share) {
+    sendJson(response, 404, { error: "Share not found." });
+    return;
+  }
+  sendJson(response, 200, share);
+}
+
+async function handleDeleteShare(request, response, user, token) {
+  try {
+    const deleted = await shareStore.deleteShare(token, user.id);
+    if (!deleted) {
+      sendJson(response, 404, { error: "Share not found." });
+      return;
+    }
+    response.writeHead(204);
+    response.end();
+  } catch (error) {
+    if (error?.code === "FORBIDDEN") {
+      sendJson(response, 403, { error: error.message });
+      return;
+    }
+    throw error;
+  }
+}
+
+async function handleListTemplates(request, response) {
+  const templates = await templateCatalog.listTemplates();
+  sendJson(response, 200, { templates });
+}
+
+async function handleGetTemplate(request, response, id, { download = false } = {}) {
+  const template = await templateCatalog.getTemplate(id);
+  if (!template) {
+    sendJson(response, 404, { error: "Template not found." });
+    return;
+  }
+
+  const body = JSON.stringify(template, null, 2);
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*"
+  };
+  if (download) {
+    headers["Content-Disposition"] = `attachment; filename="${template.templateMeta.id}.json"`;
+  }
+  response.writeHead(200, headers);
+  response.end(`${body}\n`);
+}
+
 function getUserFromRequest(request) {
   const cookies = parseCookies(request.headers.cookie);
   const session = verifySignedValue(cookies[SESSION_COOKIE]);
@@ -1028,6 +1198,8 @@ function handleAuthGoogleStart(request, response) {
   const redirectUri = `${baseUrl}/api/auth/google/callback`;
   const state = randomBytes(24).toString("hex");
   const secure = isSecureRequest(request);
+  const url = new URL(request.url || "/", `http://${request.headers.host}`);
+  const pendingTemplate = sanitizePendingTemplateId(url.searchParams.get("importTemplate"));
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -1039,11 +1211,29 @@ function handleAuthGoogleStart(request, response) {
     prompt: "select_account"
   });
 
+  const cookies = [
+    buildCookie(OAUTH_STATE_COOKIE, state, { maxAge: STATE_TTL_SECONDS, secure })
+  ];
+  if (pendingTemplate) {
+    cookies.push(buildCookie(PENDING_TEMPLATE_COOKIE, pendingTemplate, {
+      maxAge: STATE_TTL_SECONDS,
+      secure
+    }));
+  } else {
+    cookies.push(clearCookie(PENDING_TEMPLATE_COOKIE, { secure }));
+  }
+
   sendRedirect(
     response,
     `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-    [buildCookie(OAUTH_STATE_COOKIE, state, { maxAge: STATE_TTL_SECONDS, secure })]
+    cookies
   );
+}
+
+function sanitizePendingTemplateId(value) {
+  const raw = String(value || "").trim();
+  if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(raw)) return "";
+  return raw;
 }
 
 async function handleAuthGoogleCallback(request, response, url) {
@@ -1134,12 +1324,18 @@ async function handleAuthGoogleCallback(request, response, url) {
     exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS
   });
 
-  sendRedirect(response, `${baseUrl}/`, [
+  const pendingTemplate = sanitizePendingTemplateId(cookies[PENDING_TEMPLATE_COOKIE]);
+  const landingPath = pendingTemplate
+    ? `/?importTemplate=${encodeURIComponent(pendingTemplate)}`
+    : "/";
+
+  sendRedirect(response, `${baseUrl}${landingPath}`, [
     buildCookie(SESSION_COOKIE, sessionValue, {
       maxAge: SESSION_TTL_SECONDS,
       secure
     }),
-    clearCookie(OAUTH_STATE_COOKIE, { secure })
+    clearCookie(OAUTH_STATE_COOKIE, { secure }),
+    clearCookie(PENDING_TEMPLATE_COOKIE, { secure })
   ]);
 }
 
@@ -1182,6 +1378,7 @@ function listen(port, attempts = 0) {
     console.log("  GOOGLE_CLIENT_SECRET:", process.env.GOOGLE_CLIENT_SECRET ? "set" : "NOT SET");
     console.log("  SESSION_SECRET:", process.env.SESSION_SECRET ? "set" : "NOT SET");
     console.log("  APP_BASE_URL:", process.env.APP_BASE_URL || "(derived from request)");
+    console.log("  DATA_DIR:", DATA_DIR);
   });
 }
 
@@ -1225,51 +1422,120 @@ async function handleRequest(request, response) {
       return;
     }
 
-    // Handle API routes first
+    if (url.pathname === "/api/templates") {
+      if (request.method !== "GET") {
+        sendJson(response, 405, { error: "Method not allowed" }, { Allow: "GET" });
+        return;
+      }
+      await handleListTemplates(request, response);
+      return;
+    }
+
+    const templateDownloadMatch = url.pathname.match(/^\/api\/templates\/([^/]+)\/download$/);
+    if (templateDownloadMatch) {
+      if (request.method !== "GET") {
+        sendJson(response, 405, { error: "Method not allowed" }, { Allow: "GET" });
+        return;
+      }
+      await handleGetTemplate(request, response, decodeURIComponent(templateDownloadMatch[1]), { download: true });
+      return;
+    }
+
+    const templateMatch = url.pathname.match(/^\/api\/templates\/([^/]+)$/);
+    if (templateMatch) {
+      if (request.method !== "GET") {
+        sendJson(response, 405, { error: "Method not allowed" }, { Allow: "GET" });
+        return;
+      }
+      await handleGetTemplate(request, response, decodeURIComponent(templateMatch[1]));
+      return;
+    }
+
+    const shareMatch = url.pathname.match(/^\/api\/shares\/([^/]+)$/);
+    if (shareMatch) {
+      const token = decodeURIComponent(shareMatch[1]);
+      if (request.method === "GET") {
+        await handleGetShare(request, response, token);
+        return;
+      }
+      if (request.method === "DELETE") {
+        const user = requireAuth(request, response);
+        if (!user) return;
+        await handleDeleteShare(request, response, user, token);
+        return;
+      }
+      sendJson(response, 405, { error: "Method not allowed" }, { Allow: "GET, DELETE" });
+      return;
+    }
+
+    // Handle protected API routes
     if (PROTECTED_API_PATHS.has(url.pathname)) {
       if (request.method === "OPTIONS") {
         response.writeHead(204, {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
           "Access-Control-Max-Age": "86400"
         });
         response.end();
         return;
       }
-      if (request.method === "POST" || (url.pathname === "/api/analyze-feasibility" && request.method === "GET")) {
-        if (!requireAuth(request, response)) return;
 
+      const user = requireAuth(request, response);
+      if (!user) return;
+
+      if (url.pathname === "/api/workspace" && request.method === "GET") {
+        await handleGetWorkspace(request, response, user);
+        return;
+      }
+      if (url.pathname === "/api/workspace" && request.method === "PUT") {
+        await handlePutWorkspace(request, response, user);
+        return;
+      }
+      if (url.pathname === "/api/workspace/import-template" && request.method === "POST") {
+        await handleImportTemplate(request, response, user);
+        return;
+      }
+      if (url.pathname === "/api/shares" && request.method === "POST") {
+        await handleCreateShare(request, response, user);
+        return;
+      }
+
+      if (request.method === "POST" || (url.pathname === "/api/analyze-feasibility" && request.method === "GET")) {
         if (url.pathname === "/api/inspect-spec") {
-          await handleInspectSpec(request, response);
+          await handleInspectSpec(request, response, user);
           return;
         }
         if (url.pathname === "/api/generate-prd") {
-          await handleGeneratePrd(request, response);
+          await handleGeneratePrd(request, response, user);
           return;
         }
         if (url.pathname === "/api/update-prd") {
-          await handleUpdatePrd(request, response);
+          await handleUpdatePrd(request, response, user);
           return;
         }
         if (url.pathname === "/api/analyze-feasibility") {
-          await handleAnalyzeFeasibility(request, response);
+          await handleAnalyzeFeasibility(request, response, user);
           return;
         }
         if (url.pathname === "/api/generate-design") {
-          await handleGenerateDesign(request, response);
+          await handleGenerateDesign(request, response, user);
           return;
         }
         if (url.pathname === "/api/estimate-design-pricing") {
-          await handleEstimateDesignPricing(request, response);
+          await handleEstimateDesignPricing(request, response, user);
           return;
         }
       }
-      // If API path but wrong method
+
       response.writeHead(405, {
         "Content-Type": "application/json; charset=utf-8",
         "Access-Control-Allow-Origin": "*",
-        "Allow": url.pathname === "/api/analyze-feasibility" ? "GET, POST, OPTIONS" : "POST, OPTIONS"
+        "Allow": url.pathname === "/api/workspace"
+          ? "GET, PUT, OPTIONS"
+          : url.pathname === "/api/analyze-feasibility"
+            ? "GET, POST, OPTIONS"
+            : "POST, OPTIONS"
       });
       response.end(JSON.stringify({ error: "Method not allowed" }));
       return;
@@ -1280,9 +1546,19 @@ async function handleRequest(request, response) {
       return;
     }
 
+    // SPA routes for public share links
+    if (url.pathname === "/share" || url.pathname.startsWith("/share/")) {
+      await serveStatic("/index.html", response, request.method === "HEAD");
+      return;
+    }
+
     await serveStatic(url.pathname, response, request.method === "HEAD");
   } catch (error) {
     console.error(error);
+    if (error?.code === "BODY_TOO_LARGE") {
+      sendJson(response, 413, { error: error.message || "Request body is too large." });
+      return;
+    }
     sendJson(response, 500, { error: "Unexpected server error" });
   }
 }
