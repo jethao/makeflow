@@ -5,6 +5,7 @@ import {
   getPrdReviewSource,
   isPrdReviewUnlocked,
   createLocalPrdOutput,
+  extractProductNameFromPrd,
   preserveScrollPositions,
   preserveScrollPositionBySelector
 } from "./prd-review-core.js";
@@ -63,6 +64,33 @@ test("local PRD file content is stored as a PRD review output", () => {
   assert.equal(output.source, "local_file");
   assert.deepEqual(output.comments, []);
   assert.match(output.generatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("extractProductNameFromPrd prefers Product name field", () => {
+  const content = `# FitT Pro V1 Product Requirements Document
+
+## Overview
+
+**Product name:** FitT Pro V1  
+**Owner:** Alex
+`;
+  assert.equal(extractProductNameFromPrd(content), "FitT Pro V1");
+});
+
+test("extractProductNameFromPrd falls back to H1 without PRD suffix", () => {
+  assert.equal(
+    extractProductNameFromPrd("# AeroSense Node Product Requirements Document\n\n## Overview\n"),
+    "AeroSense Node"
+  );
+  assert.equal(
+    extractProductNameFromPrd("# PulseBand Lite PRD\n\nBody"),
+    "PulseBand Lite"
+  );
+});
+
+test("extractProductNameFromPrd ignores generic titles", () => {
+  assert.equal(extractProductNameFromPrd("# Spec PRD (Mock)\n\nMock body"), "");
+  assert.equal(extractProductNameFromPrd(""), "");
 });
 
 test("preserveScrollPositions restores scroll after a render callback", () => {

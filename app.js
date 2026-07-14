@@ -462,6 +462,28 @@ function prdReviewCore() {
         comments: []
       };
     },
+    extractProductNameFromPrd(content) {
+      const text = String(content || "");
+      const fieldMatch = text.match(
+        /(?:^|\n)\s*(?:\*{0,2}|_{0,2})Product\s*name(?:\*{0,2}|_{0,2})\s*[:：]\s*(?:\*{0,2}|_{0,2})(.+?)(?:\*{0,2}|_{0,2})\s*(?=\n|$)/i
+      );
+      if (fieldMatch) {
+        const name = String(fieldMatch[1] || "").replace(/[*_`#]/g, "").replace(/\s+/g, " ").trim();
+        if (name) return name.slice(0, 120);
+      }
+      const headingMatch = text.match(/^\s{0,3}#\s+(.+?)\s*$/m);
+      if (headingMatch) {
+        let heading = String(headingMatch[1] || "").replace(/[*_`#]/g, "").replace(/\s+/g, " ").trim();
+        heading = heading
+          .replace(/\s*[-–—:|]\s*product\s+requirements\s+document\s*$/i, "")
+          .replace(/\s+product\s+requirements\s+document\s*$/i, "")
+          .replace(/\s*\((?:prd|product\s+requirements\s+document)\)\s*$/i, "")
+          .replace(/\s+prd\s*$/i, "")
+          .trim();
+        if (heading) return heading.slice(0, 120);
+      }
+      return "";
+    },
     preserveScrollPositions(targets, action, scheduleRestore) {
       const snapshots = Array.from(targets || [])
         .filter((target, index, list) => target && list.indexOf(target) === index)
@@ -1984,6 +2006,15 @@ async function importLocalPrdFile(event) {
     comments: Array.isArray(previousReviewPrd?.comments) ? previousReviewPrd.comments : []
   };
   product.completed[1] = false;
+
+  const extractedName = prdReviewCore().extractProductNameFromPrd
+    ? prdReviewCore().extractProductNameFromPrd(content)
+    : "";
+  if (extractedName && product.productName !== extractedName) {
+    product.productName = extractedName;
+    logActivity(`Product name set to ${extractedName} from uploaded PRD`);
+  }
+
   logActivity(`Local PRD opened from ${file.name}`);
   persist();
   render();
