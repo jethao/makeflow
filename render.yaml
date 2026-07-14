@@ -19,3 +19,7 @@ services:
         sync: false
       - key: APP_BASE_URL
         sync: false
+      # Point DATA_DIR at a persistent disk mount in production so workspaces
+      # and share links survive redeploys (ephemeral free disks lose this data).
+      - key: DATA_DIR
+        value: /var/data

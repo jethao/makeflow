@@ -12,12 +12,14 @@ export GOOGLE_CLIENT_ID="your-google-client-id.apps.googleusercontent.com"
 export GOOGLE_CLIENT_SECRET="your-google-client-secret"
 export SESSION_SECRET="$(openssl rand -hex 32)"
 export APP_BASE_URL="http://localhost:4173"
+# Optional: durable data root (workspaces, shares, per-user generated files)
+# export DATA_DIR="/var/lib/makeflow"
 npm start
 ```
 
-Open `http://localhost:4173`. Unauthenticated visitors see the landing page and must log in with Google before using the product dashboard. Generated PRD source snapshots and PRD Markdown files are saved under `generated/`.
+Open `http://localhost:4173`. Unauthenticated visitors see the landing page (including starter templates) and must log in with Google before using the product dashboard.
 
-If another local server is already using port `4173`, Makeflow prints the next available URL, such as `http://localhost:4174`. Use the printed URL so `Generate PRD` can reach the local API server, and set `APP_BASE_URL` to that same origin for Google OAuth redirects.
+If another local server is already using port `4173`, Makeflow prints the next available URL, such as `http://localhost:4174`. Use the printed URL so AI APIs can reach the local server, and set `APP_BASE_URL` to that same origin for Google OAuth redirects.
 
 ### Google OAuth setup
 
@@ -30,11 +32,17 @@ If another local server is already using port `4173`, Makeflow prints the next a
    - Production: `https://YOUR-HOST/api/auth/google/callback`
 6. Copy the client ID and client secret into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
-The landing page offers **Log in with Google** only (first-time Google users are signed in the same way). Product workflow state remains in browser `localStorage` (per browser/device), not yet synced per account on the server.
+### Cloud workspace, templates, and sharing
+
+- After Google login, the full multi-product workspace is stored **per account** under `DATA_DIR` (default `./data`) as `data/users/{userId}/workspace.json`.
+- Browser `localStorage` is a cache. On first login, any existing local products are migrated to the server if the cloud workspace is empty.
+- **Starter templates** live in `templates/` and are listed on the landing page. Visitors can download JSON; signed-in users can import a template into their workspace.
+- **Share design** (Design stage) creates a public read-only snapshot at `/share/{token}` that does not require login.
+- AI generation snapshots are written under `data/users/{userId}/generated/` (legacy root `generated/` is no longer used for authenticated runs).
 
 ## Deploy for access anywhere
 
-Makeflow must be deployed as a Node web service because the UI calls local `/api/*` routes in `server.js` for OpenAI-backed PRD, feasibility, and design generation.
+Makeflow must be deployed as a Node web service because the UI calls `/api/*` routes in `server.js` for auth, workspace sync, templates, shares, and OpenAI-backed generation.
 
 ### Render
 
@@ -50,12 +58,14 @@ Makeflow must be deployed as a Node web service because the UI calls local `/api
    - `GOOGLE_CLIENT_SECRET`
    - `SESSION_SECRET` (long random string)
    - `APP_BASE_URL` (your Render HTTPS URL, no trailing slash)
-5. In Google Cloud, add the Render origin and redirect URI for the OAuth client.
-6. Deploy and open the Render-provided HTTPS URL from any device.
+   - `DATA_DIR` (optional; path to a **persistent disk** mount for workspaces/shares)
+5. Attach a persistent disk for production data if you need workspaces to survive redeploys (free web service disks are ephemeral).
+6. In Google Cloud, add the Render origin and redirect URI for the OAuth client.
+7. Deploy and open the Render-provided HTTPS URL from any device.
 
 ### Notes
 
-- Browser workflow state is stored in `localStorage`, so each browser/device has its own saved products.
-- Generated server files are written under `generated/` and should be treated as temporary host-local output.
-- AI `/api/*` routes require a signed-in session cookie.
-- Do not commit `.env`, `generated/`, `.DS_Store`, or `generated.zip`.
+- Cloud workspace is the source of truth for signed-in users; `localStorage` is a cache and migration source.
+- Do not commit `.env`, `data/`, `generated/`, `.DS_Store`, or `generated.zip`.
+- AI `/api/*` routes and workspace writes require a signed-in session cookie.
+- Public routes: landing, `/api/templates*`, `/api/shares/:token`, `/share/:token`.

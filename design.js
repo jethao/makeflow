@@ -52,6 +52,7 @@
             </button>
           </div>
           ${renderDesignOutputIcons(product)}
+          ${renderShareDesignSection(product)}
           ${renderEstimatePricingSection(product)}
         </div>
       </li>
@@ -67,10 +68,83 @@
     elements.checklist.querySelectorAll(".design-output-button").forEach((button) => {
       button.addEventListener("click", () => openDesignOutput(product.designOutputs?.[button.dataset.designKey]));
     });
+    const shareButton = document.getElementById("shareDesignButton");
+    if (shareButton) shareButton.addEventListener("click", () => shareDesignPackage(product));
     const estimateButton = document.getElementById("estimateDesignPricingButton");
     if (estimateButton) estimateButton.addEventListener("click", () => estimateDesignPricing(product, prd, feasibility));
     const approveButton = document.getElementById("approveDesignPricingButton");
     if (approveButton) approveButton.addEventListener("click", () => approveDesign(product));
+  }
+
+  function renderShareDesignSection(product) {
+    const hasOutputs = DESIGN_TYPES.some((type) => product?.designOutputs?.[type.key]?.content);
+    if (!hasOutputs) return "";
+
+    return `
+      <div class="design-share-section">
+        <button id="shareDesignButton" class="secondary-button" type="button">Share design</button>
+        <p id="shareDesignStatus" class="design-share-status" hidden></p>
+      </div>
+    `;
+  }
+
+  async function shareDesignPackage(product) {
+    if (!product?.id) return;
+
+    const status = document.getElementById("shareDesignStatus");
+    const button = document.getElementById("shareDesignButton");
+    if (button) button.disabled = true;
+    if (status) {
+      status.hidden = false;
+      status.textContent = "Creating share link…";
+    }
+
+    // Ensure latest product state is on the server before snapshotting.
+    if (typeof app().persist === "function") app().persist();
+    if (typeof app().flushWorkspaceSync === "function") {
+      await app().flushWorkspaceSync();
+    }
+
+    try {
+      const response = await fetch("/api/shares", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: product.id })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || `Unable to share design (HTTP ${response.status})`);
+      }
+
+      const url = result.url || `${window.location.origin}/share/${result.token}`;
+      let copied = false;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(url);
+          copied = true;
+        }
+      } catch {
+        copied = false;
+      }
+
+      if (status) {
+        status.hidden = false;
+        status.innerHTML = copied
+          ? `Link copied: <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`
+          : `Share link: <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>`;
+      }
+      app().logActivity?.("Design package shared");
+    } catch (error) {
+      if (status) {
+        status.hidden = false;
+        status.textContent = error.message || "Share failed.";
+      } else {
+        alert(error.message || "Share failed.");
+      }
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   async function startDesignGeneration(product, prd, feasibility) {

@@ -1,0 +1,71 @@
+{
+  "templateMeta": {
+    "id": "iot-sensor-node",
+    "title": "IoT environmental sensor",
+    "description": "Battery-powered connected sensor for temperature, humidity, and air quality with cloud dashboard.",
+    "tags": ["iot", "sensor", "battery", "wireless"],
+    "version": "1"
+  },
+  "product": {
+    "productName": "AeroSense Node",
+    "productType": "IoT / Connected device",
+    "formFactor": "Wall-mount plastic enclosure, ~80×80×25 mm",
+    "bomTarget": 28,
+    "completed": [false, false, false, false, false, false, false, false, false, false],
+    "checks": [[], [], [], [], [], [], [], [], [], []],
+    "checklistContexts": [
+      [
+        "Help facility managers monitor indoor air quality and ambient conditions without running new wiring.",
+        "Building operations teams and property managers for mid-size commercial spaces.",
+        "",
+        "Battery life ≥ 24 months, wireless range suitable for one floor, BOM target under $30.",
+        "Cloud dashboard + mobile pairing; offline local buffering for at least 24 hours of samples.",
+        "Target FCC/CE for intentional radiator; no medical claims.",
+        "Accurate readings, multi-year battery life, simple install, and reliable cloud alerts.",
+        "MVP ships temperature + humidity; CO2 and VOC as stretch options."
+      ],
+      ["", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""]
+    ],
+    "checklistFeatures": [
+      [
+        [],
+        [],
+        [
+          "Use case: Continuous room monitoring\n\nHow to use: Mount on wall, power on, pair via mobile app.\n\nOperating condition: Indoor 0–40°C, 10–90% RH non-condensing.\n\nAcceptance criteria: Report every 5 minutes with ±0.5°C / ±3% RH accuracy.\n\nMetrics: Packet success rate, battery drain per day.",
+          "Use case: Threshold alerts\n\nHow to use: Configure thresholds in cloud dashboard.\n\nOperating condition: Online connectivity required for push alerts.\n\nAcceptance criteria: Alert within 2 minutes of threshold breach.\n\nMetrics: Alert latency, false positive rate."
+        ],
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      [[], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []]
+    ],
+    "designOutputs": {},
+    "designCostEstimate": null,
+    "activity": [
+      {
+        "message": "Template seed: IoT environmental sensor",
+        "timestamp": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "selectedIndex": 0
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "templateMeta": {
+    "id": "wearable-tracker",
+    "title": "Wearable activity tracker",
+    "description": "Wrist-worn fitness tracker with heart-rate sensing, BLE phone sync, and a companion app.",
+    "tags": ["wearable", "ble", "health", "battery"],
+    "version": "1"
+  },
+  "product": {
+    "productName": "PulseBand Lite",
+    "productType": "Wearable",
+    "formFactor": "Soft TPU strap with 40 mm polycarbonate module",
+    "bomTarget": 45,
+    "completed": [false, false, false, false, false, false, false, false, false, false],
+    "checks": [[], [], [], [], [], [], [], [], [], []],
+    "checklistContexts": [
+      [
+        "Give everyday users an affordable way to track steps, heart rate, and sleep without a full smartwatch.",
+        "Health-conscious consumers and first-time wearable buyers.",
+        "",
+        "Water resistance IP68, BLE 5.x phone sync, BOM target under $50, skin-safe materials.",
+        "Companion iOS/Android app with BLE sync; no medical diagnosis claims in software.",
+        "Consumer electronics safety; biocompatibility for skin-contact materials.",
+        "Comfortable all-day wear, 7-day battery, trustworthy activity metrics, simple app.",
+        "MVP: steps, HR, sleep stages; GPS and SpO2 deferred."
+      ],
+      ["", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""],
+      ["", "", "", "", ""]
+    ],
+    "checklistFeatures": [
+      [
+        [],
+        [],
+        [
+          "Use case: All-day activity tracking\n\nHow to use: Wear on wrist; auto-sync when phone is nearby.\n\nOperating condition: Normal daily motion, indoor/outdoor.\n\nAcceptance criteria: Step count within 10% of reference pedometer on standard walk test.\n\nMetrics: Sync success rate, daily active users.",
+          "Use case: Continuous heart rate\n\nHow to use: Enable HR in app; wear snug on wrist.\n\nOperating condition: Skin contact required; reduced accuracy with loose fit.\n\nAcceptance criteria: Resting HR MAE ≤ 5 bpm vs chest strap in lab protocol.\n\nMetrics: HR sample completeness, battery impact."
+        ],
+        [],
+        [],
+        [],
+        [],
+        []
+      ],
+      [[], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []],
+      [[], [], [], [], []]
+    ],
+    "designOutputs": {},
+    "designCostEstimate": null,
+    "activity": [
+      {
+        "message": "Template seed: Wearable activity tracker",
+        "timestamp": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "selectedIndex": 0
+  }
+}
