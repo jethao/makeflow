@@ -39,6 +39,60 @@ export function createLocalPrdOutput({ name, content }) {
   };
 }
 
+/**
+ * Pull a product name from PRD markdown.
+ * Prefers an explicit "Product name:" field, then H1 patterns like
+ * "# FitT Pro V1 Product Requirements Document".
+ */
+export function extractProductNameFromPrd(content) {
+  const text = String(content || "").replace(/^\uFEFF/, "");
+  if (!text.trim()) return "";
+
+  const fieldMatch = text.match(
+    /(?:^|\n)\s*(?:\*{0,2}|_{0,2})Product\s*name(?:\*{0,2}|_{0,2})\s*[:：]\s*(?:\*{0,2}|_{0,2})(.+?)(?:\*{0,2}|_{0,2})\s*(?=\n|$)/i
+  );
+  if (fieldMatch) {
+    const fromField = cleanProductName(fieldMatch[1]);
+    if (fromField) return fromField;
+  }
+
+  const headingMatch = text.match(/^\s{0,3}#\s+(.+?)\s*$/m);
+  if (headingMatch) {
+    let heading = cleanProductName(headingMatch[1]);
+    heading = heading
+      .replace(/\s*[-–—:|]\s*product\s+requirements\s+document\s*$/i, "")
+      .replace(/\s+product\s+requirements\s+document\s*$/i, "")
+      .replace(/\s*\((?:prd|product\s+requirements\s+document)\)\s*$/i, "")
+      .replace(/\s+prd\s*$/i, "")
+      .trim();
+    const fromHeading = cleanProductName(heading);
+    if (fromHeading && !isGenericPrdTitle(fromHeading)) return fromHeading;
+  }
+
+  return "";
+}
+
+function cleanProductName(value) {
+  return String(value || "")
+    .replace(/[*_`#]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
+function isGenericPrdTitle(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return (
+    !normalized
+    || normalized === "prd"
+    || normalized === "product requirements document"
+    || normalized === "spec prd"
+    || normalized === "spec prd (mock)"
+    || normalized === "requirements"
+    || normalized === "overview"
+  );
+}
+
 export function preserveScrollPositions(targets, action, scheduleRestore) {
   const snapshots = Array.from(targets || [])
     .filter((target, index, list) => target && list.indexOf(target) === index)
@@ -90,6 +144,7 @@ if (typeof window !== "undefined") {
     isPrdReviewUnlocked,
     getPrdReviewSource,
     createLocalPrdOutput,
+    extractProductNameFromPrd,
     preserveScrollPositions,
     preserveScrollPositionBySelector
   };
